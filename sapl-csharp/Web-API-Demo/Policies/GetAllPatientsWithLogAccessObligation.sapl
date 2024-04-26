@@ -1,0 +1,14 @@
+policy "GetPatientsWithBrokenLeg"
+permit 
+where
+var lastname    = log.infoSpy("lastname     : ", subject.LastName);
+                  log.infoSpy("is user     : ", lastname == "Keinel");
+var actionname   = log.infoSpy("actionname     : ", action.ActionName);
+                  log.infoSpy("is action permitted     : ", actionname == "GetPatientsWithBrokenLeg");
+obligation
+{
+	"logging": "log_access"
+}
+advice
+    "logging:inform_admin"
+

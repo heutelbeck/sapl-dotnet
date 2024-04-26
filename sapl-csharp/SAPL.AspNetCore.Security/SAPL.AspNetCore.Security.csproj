@@ -1,0 +1,91 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <GeneratePackageOnBuild>True</GeneratePackageOnBuild>
+    <Title>SAPL-Asp.Net Core Security</Title>
+    <Authors>Robert Weinel</Authors>
+    <Company>FTK - Forschungsinstitut für Telekommunikation und Kooperation e.V.</Company>
+    <Description>
+      This package provides a deep integration with ASP.Net Core request-response-pipeline. 
+      It provides a number of DI services to establish Policy Enforcement Points within an application, using a declarative aspect-oriented programming style.
+      It also enables the use of so-called constraints and the implementation of suitable side effects.
+    </Description>
+    <Copyright>Apache License 2.0</Copyright>
+    <PackageProjectUrl>https://www.ftk.de/de</PackageProjectUrl>
+    <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
+    <IsPackable>true</IsPackable>
+    <NoWarn>NU5100</NoWarn>
+    <PackageIcon></PackageIcon>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Compile Remove="Test\Interceptors\**" />
+    <EmbeddedResource Remove="Test\Interceptors\**" />
+    <None Remove="Test\Interceptors\**" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.AspNetCore.Mvc.Core" Version="2.2.5" />
+    <PackageReference Include="Microsoft.Extensions.Configuration" Version="8.0.0" />
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="8.0.1" />
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.9.0" />
+    <PackageReference Include="NSubstitute" Version="5.1.0" />
+    <PackageReference Include="System.Composition" Version="8.0.0" />
+    <PackageReference Include="System.IdentityModel.Tokens.Jwt" Version="7.4.1" />
+    <PackageReference Include="xunit.assert" Version="2.7.0" />
+    <PackageReference Include="xunit.core" Version="2.7.0" />
+    <PackageReference Include="xunit.runner.visualstudio" Version="2.5.7">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+    </PackageReference>
+  </ItemGroup>
+
+  <ItemGroup>
+    <Folder Include="Test\Constraints\Providers\" />
+  </ItemGroup>
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\PDP.Client\PDP.Client.csproj">
+      <Private>True</Private>
+    </ProjectReference>
+  </ItemGroup>
+  <ItemGroup>
+    <Compile Update="Properties\Resources.Designer.cs">
+      <DesignTime>True</DesignTime>
+      <AutoGen>True</AutoGen>
+      <DependentUpon>Resources.resx</DependentUpon>
+    </Compile>
+  </ItemGroup>
+  <ItemGroup>
+    <EmbeddedResource Update="Properties\Resources.resx">
+      <Generator>ResXFileCodeGenerator</Generator>
+      <LastGenOutput>Resources.Designer.cs</LastGenOutput>
+    </EmbeddedResource>
+  </ItemGroup>
+  <ItemGroup>
+    <None Update="README.md">
+      <Pack>True</Pack>
+      <PackagePath>\</PackagePath>
+    </None>
+    <None Update="SAPLLogo.png">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </None>
+  </ItemGroup>
+
+  <!--<Target Name="AfterNuGetPack" AfterTargets="Pack">
+    --><!-- Überprüfen, ob der Build nicht auf GitHub Actions ausgeführt wird --><!--
+    <Exec Command="if not $(GITHUB_ACTIONS) (xcopy /y &quot;C:\Users\rober\Workspace\abschlussarbeit\2023-robert-weinel-thesis\sapl-csharp\SAPL.AspNetCore.Security\bin\Release\$(ProjectName).$(Version).nupkg&quot; &quot;C:\Users\rober\Workspace\abschlussarbeit\2023-robert-weinel-thesis\nugetPackages&quot;)" />
+  </Target>-->
+
+
+  <!--<Target Name="AfterNuGetPack" AfterTargets="Pack">
+    <Copy SourceFiles="C:\Users\rober\Workspace\abschlussarbeit\2023-robert-weinel-thesis\sapl-csharp\SAPL.AspNetCore.Security\bin\Release\$(ProjectName).$(Version).nupkg" DestinationFolder="C:\Users\rober\Workspace\abschlussarbeit\2023-robert-weinel-thesis\nugetPackages" />
+  </Target>-->
+
+</Project>

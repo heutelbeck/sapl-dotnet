@@ -1,0 +1,18 @@
+policy "filterJsonPatientsDelete"
+permit 
+action == "GetAllPatientsUserForJsonFilterDelete"
+where
+    subject == "User";
+obligation  {
+            "type": "filterJsonPathContent",
+            "conditions": [
+                            {
+                            "path": "$.[?(@.LastName == 'Blubb')]",       
+                            "actions": [
+                                        {                                          
+                                          "type": "delete"
+                                        }
+                                       ]
+                            }
+                          ]
+            }

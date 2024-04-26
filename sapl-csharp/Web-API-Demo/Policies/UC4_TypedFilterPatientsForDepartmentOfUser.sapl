@@ -1,0 +1,13 @@
+
+
+policy "UseCase4"
+permit 
+where
+var actionname   = log.infoSpy("actionname     : ", action.ActionName);
+                  log.infoSpy("is action permitted     : ", actionname == "GetAllPatientsForTypedFilter");
+obligation  {
+            "type": "filterPatiensForDepartment",
+            "filterDepartment": ""+subject.Department+""                           
+            }
+
+

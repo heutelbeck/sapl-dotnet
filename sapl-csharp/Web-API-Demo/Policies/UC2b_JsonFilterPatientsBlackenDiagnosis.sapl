@@ -1,0 +1,28 @@
+
+
+policy "UseCase2b"
+permit 
+where
+var role    = log.infoSpy("role     : ", subject.Role);
+                  log.infoSpy("is clinicalAssistant     : ", role == "ClinicalAssistant");
+var actionname   = log.infoSpy("actionname     : ", action.ActionName);
+                  log.infoSpy("is action permitted     : ", actionname == "GetAllPatientsUserForJsonFilterBlackenDiagnosis");
+obligation  {
+            "type": "filterJsonPathContent",
+            "conditions": [
+                            {
+                            "path": "$.[?(@.Diagnosis != 'X')]",       
+                            "actions": [
+                                        {
+                                          "path": "Diagnosis",
+                                          "type": "blacken",
+                                          "replacement": "XXX",
+                                          "discloseLeft": "1",
+                                          "discloseRight": "1"
+                                        }
+                                       ]
+                            }
+                          ]
+            }
+
+

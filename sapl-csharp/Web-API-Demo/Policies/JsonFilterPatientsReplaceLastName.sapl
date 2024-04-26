@@ -1,0 +1,22 @@
+policy "filterJsonPatientsReplaceLastName"
+permit 
+action == "GetAllPatientsUserForJsonFilter"
+where
+    subject == "User";
+obligation  {
+            "type": "filterJsonPathContent",
+            "conditions": [
+                            {
+                            "path": "$.[?(@.LastName == 'Blubb')]",       
+                            "actions": [
+                                        {
+                                          "path": "LastName",
+                                          "type": "replace",
+                                          "replacement": "Halloele",
+                                          "discloseLeft": "0",
+                                          "discloseRight": "0"
+                                        }
+                                       ]
+                            }
+                          ]
+            }

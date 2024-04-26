@@ -1,0 +1,62 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>netstandard2.1</TargetFramework>
+    <RootNamespace>SAPL.PDP.Api</RootNamespace>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <GeneratePackageOnBuild>True</GeneratePackageOnBuild>
+    <Title>SAPL-PDP Api</Title>
+    <Authors>Robert Weinel</Authors>
+    <Company>FTK - Forschungsinstitut für Telekommunikation und Kooperation e.V.</Company>
+    <Description>This API is the raw PDP API. 
+This API can be used by developers attempting to implement their own Policy Enforcement Points (PEPs) or by .NET- SAPL framework integration libraries.
+    </Description>
+    <Copyright>Apache License 2.0</Copyright>
+    <PackageProjectUrl>https://www.ftk.de</PackageProjectUrl>
+    <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
+    <IsPackable>true</IsPackable>
+  </PropertyGroup>
+  <PropertyGroup>
+    <LangVersion>10.0</LangVersion>
+    <Product>SAPL.$(AssemblyName)</Product>
+    <PackageId>SAPL.$(AssemblyName)</PackageId>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|AnyCPU'">
+    <OutputPath>..\Dlls\</OutputPath>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <None Include="..\.editorconfig" Link=".editorconfig" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Extensions.Configuration.Abstractions" Version="8.0.0" />
+    <PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
+    <PackageReference Include="NSubstitute" Version="5.1.0" />
+    <PackageReference Include="System.Reactive" Version="6.0.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Folder Include="Configuration\Metadata\" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Update="README.md">
+      <Pack>True</Pack>
+      <PackagePath>\</PackagePath>
+    </None>
+  </ItemGroup>
+
+  <!--<Target Name="AfterNuGetPack" AfterTargets="Pack">
+    <Copy SourceFiles="C:\Users\rober\Workspace\abschlussarbeit\2023-robert-weinel-thesis\sapl-csharp\PDP.API\bin\Release\SAPL.$(ProjectName).$(Version).nupkg" DestinationFolder="C:\Users\rober\Workspace\abschlussarbeit\2023-robert-weinel-thesis\nugetPackages" />
+  </Target>-->
+
+  <!--<Target Name="AfterNuGetPack" AfterTargets="Pack">
+    --><!-- Überprüfen, ob der Build nicht auf GitHub Actions ausgeführt wird --><!--
+    <Exec Command="if not $(GITHUB_ACTIONS) (xcopy /y &quot;C:\Users\rober\Workspace\abschlussarbeit\2023-robert-weinel-thesis\sapl-csharp\PDP.API\bin\Release\$(ProjectName).$(Version).nupkg&quot; &quot;C:\Users\rober\Workspace\abschlussarbeit\2023-robert-weinel-thesis\nugetPackages&quot;)" />
+  </Target>-->
+
+
+</Project>

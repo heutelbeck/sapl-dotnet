@@ -1,0 +1,8 @@
+policy "filterPatients"
+permit 
+action == "GetAllPatientsUserForTypedFilter"
+where
+    subject == "User";
+obligation  {
+                'type': 'filterPatients'
+             }

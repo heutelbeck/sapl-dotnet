@@ -1,0 +1,8 @@
+policy "GetPatients"
+permit 
+where
+var lastname    = log.infoSpy("lastname     : ", subject.LastName);
+                  log.infoSpy("is user     : ", lastname == "Keinel");
+var actionname   = log.infoSpy("actionname     : ", action.ActionName);
+                  log.infoSpy("is action permitted     : ", actionname == "GetPatients");
+

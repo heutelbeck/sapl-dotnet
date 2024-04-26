@@ -1,0 +1,26 @@
+
+
+policy "filterJsonPatientsBlackenLastName"
+permit 
+action == "GetAllPatientsUserForJsonFilterBlacken"
+where
+    subject == "User";
+obligation  {
+            "type": "filterJsonPathContent",
+            "conditions": [
+                            {
+                            "path": "$.[?(@.LastName == 'Meier')]",       
+                            "actions": [
+                                        {
+                                          "path": "LastName",
+                                          "type": "blacken",
+                                          "replacement": "X",
+                                          "discloseLeft": "1",
+                                          "discloseRight": "1"
+                                        }
+                                       ]
+                            }
+                          ]
+            }
+
+

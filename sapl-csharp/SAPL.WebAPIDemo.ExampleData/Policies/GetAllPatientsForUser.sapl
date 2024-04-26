@@ -1,0 +1,7 @@
+policy "AllPatientsForUser"
+permit 
+action == "GetAllPatientsUser"
+where
+    subject == "User";
+
+

@@ -1,0 +1,35 @@
+
+
+policy "UseCase6"
+permit 
+where
+var role    = log.infoSpy("role     : ", subject.Role);
+                  log.infoSpy("is clinicalAssistant     : ", role == "ClinicalAssistant");
+var actionname   = log.infoSpy("actionname     : ", action.ActionName);
+                  log.infoSpy("is action permitted     : ", actionname == "GetAllPatientsUserForJsonFilterReplaceAddress");
+obligation  {
+            "type": "filterJsonPathContent",
+            "conditions": [
+                            {
+                            "path": "$.[?(@.Address != 'X')]",       
+                            "actions": [
+                                        {
+                                          "path": "Address",
+                                          "type": "replace",
+                                          "replacement": "anonym",
+                                          "discloseLeft": "1",
+                                          "discloseRight": "1"
+                                        },
+                                        {
+                                          "path": "City",
+                                          "type": "replace",
+                                          "replacement": "anonym",
+                                          "discloseLeft": "1",
+                                          "discloseRight": "1"
+                                        }
+                                       ]
+                            }
+                          ]
+            }
+
+

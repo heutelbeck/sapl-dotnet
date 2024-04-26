@@ -1,0 +1,28 @@
+{
+  "packages": [
+    {
+      "id": "SAPL.AspNetCore.Security",
+      "version": "1.0.0",
+      "description": "Security layer for ASP.NET Core applications.",
+      "authors": "FTK",
+      "projectUrl": "https://github.com/FTKeV/2023-robert-weinel-thesis/tree/main/nugetPackages",
+      "downloadUrl": "https://github.com/FTKeV/2023-robert-weinel-thesis/tree/main/nugetPackages/SAPL.AspNetCore.Security.1.0.0.nupkg"
+    },
+    {
+      "id": "SAPL.PDP.Api",
+      "version": "1.0.0",
+      "description": "API layer for policy decision points.",
+      "authors": "FTK",
+      "projectUrl": "https://github.com/FTKeV/2023-robert-weinel-thesis/tree/main/nugetPackagesi",
+      "downloadUrl": "https://github.com/FTKeV/2023-robert-weinel-thesis/tree/main/nugetPackages/SAPL.PDP.Api.1.0.0.nupkg"
+    },
+    {
+      "id": "SAPL.PDP.Client",
+      "version": "1.0.0",
+      "description": "Client library for interacting with PDP API.",
+      "authors": "FTK",
+      "projectUrl": "https://github.com/FTKeV/2023-robert-weinel-thesis/tree/main/nugetPackages",
+      "downloadUrl": "https://github.com/FTKeV/2023-robert-weinel-thesis/tree/main/nugetPackages/SAPL.PDP.Client.1.0.0.nupkg"
+    }
+  ]
+}

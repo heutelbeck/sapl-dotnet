@@ -1,0 +1,9 @@
+
+policy "GetAllPatientsForSenioConsultantDoctor"
+permit 
+where
+var role    = log.infoSpy("role     : ", subject.Role);
+                  log.infoSpy("is seniorConsultant     : ", role == "SeniorConsultantDoctor");
+var actionname   = log.infoSpy("actionname     : ", action.ActionName);
+                  log.infoSpy("is action permitted     : ", actionname == "GetAllPatients");
+

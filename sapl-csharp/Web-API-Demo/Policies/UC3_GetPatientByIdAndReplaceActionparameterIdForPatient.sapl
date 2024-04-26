@@ -1,0 +1,12 @@
+policy "UseCase3"
+permit 
+where
+var id    = log.infoSpy("id     : ", subject.Id);                  
+var actionname   = log.infoSpy("actionname     : ", action.ActionName);
+                  log.infoSpy("is action permitted     : ", actionname == "GetPatientByIdForPatient");
+obligation
+{
+	"manipulating": "changePatientId",
+    "id"          : ""+subject.Id+""
+}
+

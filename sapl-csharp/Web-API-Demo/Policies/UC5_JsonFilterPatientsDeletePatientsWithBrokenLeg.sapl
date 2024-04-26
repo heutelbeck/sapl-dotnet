@@ -1,0 +1,22 @@
+
+
+policy "UseCase5"
+permit 
+where
+var actionname   = log.infoSpy("actionname     : ", action.ActionName);
+                  log.infoSpy("is action permitted     : ", actionname == "GetAllPatientsForJsonFilterDelete");
+obligation  {
+            "type": "filterJsonPathContent",
+            "conditions": [
+                            {
+                            "path": "$.[?(@.Diagnosis == 'Broken Leg')]",       
+                            "actions": [
+                                        {                                          
+                                          "type": "delete"                                          
+                                        }
+                                       ]
+                            }
+                          ]
+            }
+
+

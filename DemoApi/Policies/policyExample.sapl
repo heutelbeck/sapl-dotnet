@@ -1,0 +1,7 @@
+policy "Example1"
+permit 
+subject == "SomeSubject"
+where            
+var actionname   = log.infoSpy("actionname     : ", action.ActionName);
+                  log.infoSpy("is action permitted     : ", actionname == "Get");
+

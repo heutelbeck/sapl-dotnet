@@ -1,0 +1,12 @@
+policy "GetPatientById"
+permit 
+where
+var lastname    = log.infoSpy("lastname     : ", subject.LastName);
+                  log.infoSpy("is user     : ", lastname == "Keinel");
+var actionname   = log.infoSpy("actionname     : ", action.ActionName);
+                  log.infoSpy("is action permitted     : ", actionname == "GetPatientById");
+obligation
+{
+	"manipulating": "changeId"
+}
+

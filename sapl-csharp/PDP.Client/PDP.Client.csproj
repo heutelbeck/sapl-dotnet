@@ -1,0 +1,72 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--<PropertyGroup>
+    <TargetFramework>netstandard2.1</TargetFramework>
+    <RootNamespace>SAPL.PDP.Client</RootNamespace>
+    <CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies>
+  </PropertyGroup>-->
+
+  <PropertyGroup>
+    <TargetFramework>netstandard2.1</TargetFramework>
+    <RootNamespace>SAPL.PDP.Client</RootNamespace>
+    <CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <GeneratePackageOnBuild>True</GeneratePackageOnBuild>
+    <Title>SAPL-PDP.Client</Title>
+    <Authors>Robert Weinel</Authors>
+    <Company>FTK - Forschungsinstitut für Telekommunikation und Kooperation e.V.</Company>
+    <Description>
+      This module implements the PDP API in the form of a client library for a dedicated SAPL Server. It can be used to in Policy Enforcement Points (PEPs) on .NET and framework integrations like
+      SAPL.ASPNetCore.Security.
+    </Description>
+    <Copyright>Apache License 2.0</Copyright>
+    <PackageProjectUrl>https://www.ftk.de/de</PackageProjectUrl>
+    <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
+    <IsPackable>true</IsPackable>
+  </PropertyGroup>
+
+  <PropertyGroup>
+    <LangVersion>10.0</LangVersion>
+    <PackageId>SAPL.$(AssemblyName)</PackageId>
+    <Product>SAPL.$(AssemblyName)</Product>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+  </PropertyGroup>
+
+
+
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|AnyCPU'">
+    <OutputPath>..\Dlls\</OutputPath>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="System.Reactive" Version="6.0.0" />
+    <PackageReference Include="System.Reactive.Linq" Version="6.0.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Folder Include="SubscriptionCaching\" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\PDP.Api\PDP.Api.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Update="README.md">
+      <Pack>True</Pack>
+      <PackagePath>\</PackagePath>
+    </None>
+  </ItemGroup>
+
+  <!--<Target Name="AfterNuGetPack" AfterTargets="Pack">
+    <Copy SourceFiles="C:\Users\rober\Workspace\abschlussarbeit\2023-robert-weinel-thesis\sapl-csharp\PDP.Client\bin\Release\SAPL.$(ProjectName).$(Version).nupkg" DestinationFolder="C:\Users\rober\Workspace\abschlussarbeit\2023-robert-weinel-thesis\nugetPackages" />
+  </Target>-->
+
+  <!--<Target Name="AfterNuGetPack" AfterTargets="Pack">
+    --><!-- Überprüfen, ob der Build nicht auf GitHub Actions ausgeführt wird --><!--
+    <Exec Command="if not $(GITHUB_ACTIONS) (xcopy /y &quot;C:\Users\rober\Workspace\abschlussarbeit\2023-robert-weinel-thesis\sapl-csharp\PDP.Client\bin\Release\$(ProjectName).$(Version).nupkg&quot; &quot;C:\Users\rober\Workspace\abschlussarbeit\2023-robert-weinel-thesis\nugetPackages&quot;)" />
+  </Target>-->
+
+
+</Project>

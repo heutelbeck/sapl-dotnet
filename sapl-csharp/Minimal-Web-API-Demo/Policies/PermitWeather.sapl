@@ -1,0 +1,5 @@
+policy "PermitWeatherForSomeSubject"
+permit 
+action == "Weather"
+where
+    subject == "SomeSubject";

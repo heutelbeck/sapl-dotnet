@@ -1,0 +1,24 @@
+policy "Example2"
+permit 
+subject == "SomeSubject"
+where            
+var actionname   = log.infoSpy("actionname     : ", action.ActionName);
+                  log.infoSpy("is action permitted     : ", actionname == "GetTwo");
+obligation  {
+            "type": "filterJsonPathContent",
+            "conditions": [
+                            {
+                            "path": "$.[?(@.Summary != 'X')]",       
+                            "actions": [
+                                        {
+                                          "path": "Summary",
+                                          "type": "blacken",
+                                          "replacement": "XXX",
+                                          "discloseLeft": "1",
+                                          "discloseRight": "1"
+                                        }
+                                       ]
+                            }
+                          ]
+            }
+
