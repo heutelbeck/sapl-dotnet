@@ -35,13 +35,13 @@ namespace SAPL.PDP.Client
             PdpConfiguration configuration = new PdpConfiguration(applicationSettings);
             if (configuration.IsValid())
             {
-                SaplClient.Current.SetDeviatingCredentials(configuration.BaseUri, configuration.Username, configuration.Password);
+                SaplClient.Current.SetDeviatingCredentials(configuration.BaseUri, configuration.ApiKey);
             }
         }
 
-        public PolicyDecisionPoint(string baseUri, string userName, string password)
+        public PolicyDecisionPoint(string baseUri, string apiKey)
         {
-            SaplClient.Current.SetDeviatingCredentials(baseUri, userName, password);
+            SaplClient.Current.SetDeviatingCredentials(baseUri, apiKey);
         }
 
         /// <summary>

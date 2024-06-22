@@ -22,21 +22,18 @@ namespace SAPL.PDP.Api.Configuration
     public class PdpConfiguration : IPdpConfiguration
     {
         public string BaseUri { get; }
-        public string Username { get; }
-        public string Password { get; }
+        public string ApiKey { get; }
 
         public PdpConfiguration(IConfiguration? applicationSettings)
         {
             BaseUri = applicationSettings?["SAPL:BaseUri"] ?? string.Empty;
-            Username = applicationSettings?["SAPL:Username"] ?? string.Empty;
-            Password = applicationSettings?["SAPL:Password"] ?? string.Empty;
+            ApiKey = applicationSettings?["SAPL:ApiKey"] ?? string.Empty;
         }
 
         public bool IsValid()
         {
             return !string.IsNullOrEmpty(BaseUri) &&
-                   !string.IsNullOrEmpty(Username) &&
-                   !string.IsNullOrEmpty(Password);
+                   !string.IsNullOrEmpty(ApiKey);
         }
     }
 }

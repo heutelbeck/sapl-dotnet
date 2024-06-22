@@ -22,18 +22,16 @@ namespace SAPL.AspNetCore.Security.Test.Tests.Configuration
     {
 
         public string BaseUriParameter = "SAPL:BaseUri";
-        public string UsernameParameter = "SAPL:Username";
-        public string PasswordParameter = "SAPL:Password";
+        public string ApiKeyParameter = "SAPL:ApiKey";
 
         [Fact]
         public Task When_Configuration_Uncomplete_then_Is_not_Valid()
         {
             IConfiguration? appConfiguration = Substitute.For<IConfiguration>();
             appConfiguration[BaseUriParameter].Returns("www.pdp.com");
-            appConfiguration[UsernameParameter].Returns("UserName");
-
+           
             PdpConfiguration configuration = new PdpConfiguration(appConfiguration);
-            Assert.NotNull(configuration.Password);
+            Assert.NotNull(configuration.ApiKey);
             Assert.False(configuration.IsValid());
             return Task.CompletedTask;
         }
@@ -43,8 +41,7 @@ namespace SAPL.AspNetCore.Security.Test.Tests.Configuration
         {
             IConfiguration? appConfiguration = Substitute.For<IConfiguration>();
             appConfiguration[BaseUriParameter].Returns("www.pdp.com");
-            appConfiguration[UsernameParameter].Returns("UserName");
-            appConfiguration[PasswordParameter].Returns("Password");
+            appConfiguration[ApiKeyParameter].Returns("ApiKey");
 
             PdpConfiguration configuration = new PdpConfiguration(appConfiguration);
             Assert.True(configuration.IsValid());

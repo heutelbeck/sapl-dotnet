@@ -36,23 +36,14 @@ namespace csharp.sapl.pdp.remote
 
         private static readonly object padlock = new object();
         private static SaplClient current = null!;
-        private static string _userName = "YJidgyT2mfdkbmL";
-        private static string _password = "Fa4zvYQdiwHZVXh";
-        static string _creds = string.Format("{0}:{1}", _userName, _password);
+        private static string apiKey = "sapl_7A7ByyQd6U_5nTv3KXXLPiZ8JzHQywF9gww2v0iuA3j";
+        static string _creds = string.Format("{0}:{1}", "Bearer ", apiKey);
         private static Uri _baseUri = new Uri("https://localhost:8443");
         private string creds = null!;
         //private string authentification = string.Format("Basic {0}", Convert.ToBase64String(Encoding.UTF8.GetBytes(creds)));
         private Uri baseUri = null!;
         #endregion
 
-
-        private string authentification
-        {
-            get
-            {
-                return $"Basic {Convert.ToBase64String(Encoding.UTF8.GetBytes(creds))}";
-            }
-        }
 
         private SaplClient() { }
 
@@ -72,9 +63,9 @@ namespace csharp.sapl.pdp.remote
             }
         }
 
-        public void SetDeviatingCredentials(string uri, string userName, string password)
+        public void SetDeviatingCredentials(string uri, string apiKey)
         {
-            creds = $"{userName}:{password}";
+            creds = $"Bearer {apiKey}";
             this.baseUri = new Uri(uri);
         }
 
@@ -103,7 +94,8 @@ namespace csharp.sapl.pdp.remote
                 HttpRequestMessage httpRequestMessage = new HttpRequestMessage(HttpMethod.Post, decisionUri);
                 httpRequestMessage.Content = httpContent;
                 HttpClient client = new HttpClient(CreateHttpClientHandler());
-                client.DefaultRequestHeaders.Add("Authorization", authentification);
+                //client.DefaultRequestHeaders.Add("Authorization", authentification);
+                client.DefaultRequestHeaders.Add("Authorization", creds);
                 using (HttpResponseMessage response =
                        await client.SendAsync(httpRequestMessage, HttpCompletionOption.ResponseContentRead))
                 {
@@ -160,7 +152,7 @@ namespace csharp.sapl.pdp.remote
         {
             Uri decisionUri = new Uri(baseUri, relativeUri);
             ByteArrayContent httpContent = HttpContentForJson(authzSubscription);
-            EventStreamReader evt = new EventStreamReader(authentification, decisionUri, httpContent, CreateHttpClientHandler());
+            EventStreamReader evt = new EventStreamReader(creds, decisionUri, httpContent, CreateHttpClientHandler());
             evt.Start();
             IObservable<EventPattern<EventStreamMessageEventArgs>> receivedMassege = Observable.FromEventPattern<EventStreamMessageEventArgs>(evt, nameof(evt.MessageReceived));
             receivedMassege.Subscribe(pattern =>

@@ -231,7 +231,7 @@ public class UseCaseEvaluationIntegrationTests : IClassFixture<WebApplicationFac
         {
             { nameof(User.Username), user!.Username },
             { nameof(User.Password), password }
-            //{ nameof(User.Password), "Password" }
+            //{ nameof(User.ApiKey), "ApiKey" }
         };
         HttpContent payload = new StringContent(userJObject.ToString(), Encoding.UTF8, "application/json");
 

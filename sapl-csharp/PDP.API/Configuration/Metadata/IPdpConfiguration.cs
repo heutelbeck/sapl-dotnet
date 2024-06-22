@@ -17,8 +17,7 @@ namespace csharp.sapl.pdp.Configuration.Metadata
     public interface IPdpConfiguration
     {
         string BaseUri { get; }
-        string Username { get; }
-        string Password { get; }
+        string ApiKey { get; }
         bool IsValid();
     }
 }

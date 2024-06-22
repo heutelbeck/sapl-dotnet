@@ -62,7 +62,7 @@ namespace Web_API_Demo.Tests
             var userJObject = new JObject
             {
                 { nameof(User.Username), user!.Username },
-                { nameof(User.Password), "Password" }
+                { nameof(User.Password), "ApiKey" }
             };
 
             HttpContent payload = new StringContent(userJObject.ToString(), Encoding.UTF8, "application/json");

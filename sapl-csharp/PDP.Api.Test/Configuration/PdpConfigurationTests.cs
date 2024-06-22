@@ -26,13 +26,11 @@ namespace SAPL.PDP.Api.Test.Configuration
         {
             IConfiguration configuration = Substitute.For<IConfiguration>();
             configuration["SAPL:BaseUri"] = "https://localhost:8443";
-            configuration["SAPL:Username"] = "YJidgyT2mfdkbmL";
-            configuration["SAPL:Password"] = "Fa4zvYQdiwHZVXh";
+            configuration["SAPL:ApiKey"] = "Fa4zvYQdiwHZVXh";
 
             PdpConfiguration pdpConfiguration = new PdpConfiguration(configuration);
             Assert.NotNull(pdpConfiguration.BaseUri);
-            Assert.NotNull(pdpConfiguration.Username);
-            Assert.NotNull(pdpConfiguration.Password);
+            Assert.NotNull(pdpConfiguration.ApiKey);
             Assert.True(pdpConfiguration.IsValid());
             return Task.CompletedTask;
         }
