@@ -70,7 +70,12 @@ Select Yes if you agree to trust the development certificate.
 
 Open the File appsettings.json add the following content and save the file.
 
-![](images/8.png)
+```
+"SAPL": {
+  "BaseUri": "https://localhost:8443",
+  "ApiKey": "sapl_7A7ByyQd6U_5nTv3KXXLPiZ8JzHQywF9gww2v0iuA3j"
+}
+```
 
 ### Add the SAPL/ASBAC components to the request-response-pipeline
 
