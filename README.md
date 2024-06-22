@@ -107,12 +107,9 @@ Open the File appsettings.json add the following content and save the file.
 ```
 "SAPL": {
   "BaseUri": "https://localhost:8443",
-  "Username": "YJidgyT2mfdkbmL",
-  "Password": "Fa4zvYQdiwHZVXh"
+  "ApiKey": "sapl_7A7ByyQd6U_5nTv3KXXLPiZ8JzHQywF9gww2v0iuA3j"
 }
 ```
-
-![](images/8.png)
 
 ### Add the SAPL/ASBAC components to the request-response-pipeline
 
