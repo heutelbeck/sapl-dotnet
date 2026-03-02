@@ -1,9 +1,0 @@
-policy "permit-logged"
-permit
-  action == "readLogged";
-  resource == "logged";
-obligation
-  {
-    "type": "logAccess",
-    "message": "Patient data accessed by clinician"
-  }

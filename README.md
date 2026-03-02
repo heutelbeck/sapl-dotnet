@@ -22,7 +22,7 @@ dotnet add package Sapl.AspNetCore
 
 ## Demo
 
-See the [`demo/`](demo/) directory for a full ASP.NET Core example with Keycloak integration.
+See [heutelbeck/sapl-dotnet-demos](https://github.com/heutelbeck/sapl-dotnet-demos) for a full ASP.NET Core example with Keycloak integration, constraint handlers, streaming enforcement, and JWT authorization.
 
 ## License
 

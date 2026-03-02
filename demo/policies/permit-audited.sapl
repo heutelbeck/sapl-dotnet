@@ -1,9 +1,0 @@
-policy "permit-audited"
-permit
-  action == "readAudited";
-  resource == "audited";
-obligation
-  {
-    "type": "auditTrail",
-    "action": "readMedicalRecord"
-  }

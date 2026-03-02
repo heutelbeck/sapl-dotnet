@@ -1,4 +1,0 @@
-policy "permit-service-list-patients"
-permit
-  action == "service:listPatients";
-  resource == "patients";

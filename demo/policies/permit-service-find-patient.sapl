@@ -1,9 +1,0 @@
-policy "permit-service-find-patient"
-permit
-  action == "service:findPatient";
-  resource == "patient";
-obligation
-  {
-    "type": "logAccess",
-    "message": "Patient search by name"
-  }

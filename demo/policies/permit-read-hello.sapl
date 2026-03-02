@@ -1,4 +1,0 @@
-policy "permit-read-hello"
-permit
-  action == "read";
-  resource == "hello";

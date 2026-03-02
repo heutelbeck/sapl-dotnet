@@ -1,9 +1,0 @@
-policy "permit-service-patient-summary"
-permit
-  action == "service:getPatientSummary";
-  resource == "patientSummary";
-obligation
-  {
-    "type": "redactFields",
-    "fields": ["ssn", "insurance"]
-  }

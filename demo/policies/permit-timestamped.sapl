@@ -1,8 +1,0 @@
-policy "permit-timestamped"
-permit
-  action == "readTimestamped";
-  resource == "timestamped";
-obligation
-  {
-    "type": "injectTimestamp"
-  }

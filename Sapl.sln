@@ -11,8 +11,6 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Sapl.Core.Tests", "Sapl.Cor
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Sapl.AspNetCore.Tests", "Sapl.AspNetCore.Tests\Sapl.AspNetCore.Tests.csproj", "{3D240BE0-6C14-48B9-B37C-915B5B6435AE}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "demo", "demo\demo.csproj", "{1E5C0B6F-92C2-4726-AE97-BCD08497C5FC}"
-EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -71,18 +69,6 @@ Global
 		{3D240BE0-6C14-48B9-B37C-915B5B6435AE}.Release|x64.Build.0 = Release|Any CPU
 		{3D240BE0-6C14-48B9-B37C-915B5B6435AE}.Release|x86.ActiveCfg = Release|Any CPU
 		{3D240BE0-6C14-48B9-B37C-915B5B6435AE}.Release|x86.Build.0 = Release|Any CPU
-		{1E5C0B6F-92C2-4726-AE97-BCD08497C5FC}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{1E5C0B6F-92C2-4726-AE97-BCD08497C5FC}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{1E5C0B6F-92C2-4726-AE97-BCD08497C5FC}.Debug|x64.ActiveCfg = Debug|Any CPU
-		{1E5C0B6F-92C2-4726-AE97-BCD08497C5FC}.Debug|x64.Build.0 = Debug|Any CPU
-		{1E5C0B6F-92C2-4726-AE97-BCD08497C5FC}.Debug|x86.ActiveCfg = Debug|Any CPU
-		{1E5C0B6F-92C2-4726-AE97-BCD08497C5FC}.Debug|x86.Build.0 = Debug|Any CPU
-		{1E5C0B6F-92C2-4726-AE97-BCD08497C5FC}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{1E5C0B6F-92C2-4726-AE97-BCD08497C5FC}.Release|Any CPU.Build.0 = Release|Any CPU
-		{1E5C0B6F-92C2-4726-AE97-BCD08497C5FC}.Release|x64.ActiveCfg = Release|Any CPU
-		{1E5C0B6F-92C2-4726-AE97-BCD08497C5FC}.Release|x64.Build.0 = Release|Any CPU
-		{1E5C0B6F-92C2-4726-AE97-BCD08497C5FC}.Release|x86.ActiveCfg = Release|Any CPU
-		{1E5C0B6F-92C2-4726-AE97-BCD08497C5FC}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
