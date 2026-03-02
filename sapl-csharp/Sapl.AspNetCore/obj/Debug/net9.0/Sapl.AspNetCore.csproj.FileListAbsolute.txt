@@ -1,0 +1,16 @@
+/home/dominic/git/sapl-dotnet/sapl-csharp/Sapl.AspNetCore/bin/Debug/net9.0/Sapl.AspNetCore.deps.json
+/home/dominic/git/sapl-dotnet/sapl-csharp/Sapl.AspNetCore/bin/Debug/net9.0/Sapl.AspNetCore.dll
+/home/dominic/git/sapl-dotnet/sapl-csharp/Sapl.AspNetCore/bin/Debug/net9.0/Sapl.AspNetCore.pdb
+/home/dominic/git/sapl-dotnet/sapl-csharp/Sapl.AspNetCore/bin/Debug/net9.0/Sapl.Core.dll
+/home/dominic/git/sapl-dotnet/sapl-csharp/Sapl.AspNetCore/bin/Debug/net9.0/Sapl.Core.pdb
+/home/dominic/git/sapl-dotnet/sapl-csharp/Sapl.AspNetCore/obj/Debug/net9.0/Sapl.AspNetCore.csproj.AssemblyReference.cache
+/home/dominic/git/sapl-dotnet/sapl-csharp/Sapl.AspNetCore/obj/Debug/net9.0/Sapl.AspNetCore.GeneratedMSBuildEditorConfig.editorconfig
+/home/dominic/git/sapl-dotnet/sapl-csharp/Sapl.AspNetCore/obj/Debug/net9.0/Sapl.AspNetCore.AssemblyInfoInputs.cache
+/home/dominic/git/sapl-dotnet/sapl-csharp/Sapl.AspNetCore/obj/Debug/net9.0/Sapl.AspNetCore.AssemblyInfo.cs
+/home/dominic/git/sapl-dotnet/sapl-csharp/Sapl.AspNetCore/obj/Debug/net9.0/Sapl.AspNetCore.csproj.CoreCompileInputs.cache
+/home/dominic/git/sapl-dotnet/sapl-csharp/Sapl.AspNetCore/obj/Debug/net9.0/Sapl.AspNetCore.sourcelink.json
+/home/dominic/git/sapl-dotnet/sapl-csharp/Sapl.AspNetCore/obj/Debug/net9.0/Sapl.Asp.3CFF8302.Up2Date
+/home/dominic/git/sapl-dotnet/sapl-csharp/Sapl.AspNetCore/obj/Debug/net9.0/Sapl.AspNetCore.dll
+/home/dominic/git/sapl-dotnet/sapl-csharp/Sapl.AspNetCore/obj/Debug/net9.0/refint/Sapl.AspNetCore.dll
+/home/dominic/git/sapl-dotnet/sapl-csharp/Sapl.AspNetCore/obj/Debug/net9.0/Sapl.AspNetCore.pdb
+/home/dominic/git/sapl-dotnet/sapl-csharp/Sapl.AspNetCore/obj/Debug/net9.0/ref/Sapl.AspNetCore.dll

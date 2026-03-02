@@ -1,4 +1,0 @@
-policy "SomeSubject"
-permit action == "SomeAction"
-
-

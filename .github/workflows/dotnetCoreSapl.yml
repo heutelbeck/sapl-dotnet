@@ -1,4 +1,4 @@
-name: .NET Core Build pipeline
+name: .NET Build and Test
 
 on:
   push:
@@ -8,17 +8,17 @@ on:
 
 jobs:
   build:
-    runs-on: windows-latest
+    runs-on: ubuntu-latest
 
     steps:
     - uses: actions/checkout@v4
     - name: Setup .NET
       uses: actions/setup-dotnet@v4
       with:
-        dotnet-version: 8.0.x
+        dotnet-version: 9.0.x
     - name: Restore dependencies
-      run: dotnet restore "sapl-csharp/Sapl.Csharp.sln"
+      run: dotnet restore "sapl-csharp/Sapl.sln"
     - name: Build
-      run: dotnet build "sapl-csharp/Sapl.Csharp.sln"
+      run: dotnet build "sapl-csharp/Sapl.sln" --no-restore
     - name: Test
-      run: dotnet test "sapl-csharp/Sapl.Csharp.sln" --filter "Integration!=PDPRequired" --no-build --verbosity normal 
+      run: dotnet test "sapl-csharp/Sapl.sln" --no-build --verbosity normal

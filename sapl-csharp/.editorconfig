@@ -1,4 +1,0 @@
-﻿[*.cs]
-
-# IDE0055: Formatierung beheben
-dotnet_diagnostic.IDE0055.severity = warning
