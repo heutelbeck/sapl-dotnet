@@ -1,0 +1,42 @@
+name: Release to NuGet
+
+on:
+  push:
+    tags: ["v*"]
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 9.0.x
+
+      - name: Restore
+        run: dotnet restore Sapl.sln
+
+      - name: Build
+        run: dotnet build Sapl.sln -c Release --no-restore
+
+      - name: Test
+        run: dotnet test Sapl.sln -c Release --no-build --verbosity normal
+
+      - name: Extract version from tag
+        id: version
+        run: echo "VERSION=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
+
+      - name: Pack
+        run: |
+          dotnet pack Sapl.Core/Sapl.Core.csproj -c Release --no-build -p:PackageVersion=${{ steps.version.outputs.VERSION }} -o packages
+          dotnet pack Sapl.AspNetCore/Sapl.AspNetCore.csproj -c Release --no-build -p:PackageVersion=${{ steps.version.outputs.VERSION }} -o packages
+
+      - name: Push to NuGet
+        run: dotnet nuget push "packages/*.nupkg" --api-key ${{ secrets.NUGET_API_KEY }} --source https://api.nuget.org/v3/index.json --skip-duplicate
+
+      - name: Delete tag on failure
+        if: failure()
+        run: git push --delete origin "$GITHUB_REF_NAME"
