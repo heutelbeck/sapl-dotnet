@@ -24,6 +24,13 @@ dotnet add package Sapl.AspNetCore
 
 See [heutelbeck/sapl-dotnet-demos](https://github.com/heutelbeck/sapl-dotnet-demos) for a full ASP.NET Core example with Keycloak integration, constraint handlers, streaming enforcement, and JWT authorization.
 
+## Links
+
+- [Full Documentation](https://sapl.io/docs/latest/)
+- [.NET Integration](https://sapl.io/docs/latest/6_10_DotNet/)
+- [Demo Application](https://github.com/heutelbeck/sapl-dotnet-demos)
+- [Report an Issue](https://github.com/heutelbeck/sapl-dotnet/issues)
+
 ## License
 
 [Apache-2.0](https://www.apache.org/licenses/LICENSE-2.0)
