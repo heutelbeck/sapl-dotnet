@@ -13,7 +13,7 @@
   </PropertyGroup>
 
   <PropertyGroup Condition="'$(IsPackable)' != 'false'">
-    <PackageVersion>4.0.0-rc.1</PackageVersion>
+    <PackageVersion>4.0.0</PackageVersion>
     <Authors>Dominic Heutelbeck</Authors>
     <Company>SAPL</Company>
     <PackageLicenseExpression>Apache-2.0</PackageLicenseExpression>
