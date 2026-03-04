@@ -1,7 +1,7 @@
-namespace Sapl.AspNetCore.Attributes;
+namespace Sapl.Core.Attributes;
 
 [AttributeUsage(AttributeTargets.Method)]
-public sealed class EnforceRecoverableIfDeniedAttribute : Attribute
+public sealed class EnforceTillDeniedAttribute : Attribute
 {
     public string? Subject { get; set; }
 
@@ -10,4 +10,8 @@ public sealed class EnforceRecoverableIfDeniedAttribute : Attribute
     public string? Resource { get; set; }
 
     public string? Environment { get; set; }
+
+    public string? Secrets { get; set; }
+
+    public Type? Customizer { get; set; }
 }

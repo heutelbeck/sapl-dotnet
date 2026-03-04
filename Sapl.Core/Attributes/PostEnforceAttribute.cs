@@ -1,4 +1,4 @@
-namespace Sapl.AspNetCore.Attributes;
+namespace Sapl.Core.Attributes;
 
 [AttributeUsage(AttributeTargets.Method | AttributeTargets.Class)]
 public sealed class PostEnforceAttribute : Attribute
@@ -10,4 +10,8 @@ public sealed class PostEnforceAttribute : Attribute
     public string? Resource { get; set; }
 
     public string? Environment { get; set; }
+
+    public string? Secrets { get; set; }
+
+    public Type? Customizer { get; set; }
 }

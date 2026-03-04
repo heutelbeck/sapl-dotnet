@@ -1,8 +1,8 @@
 using FluentAssertions;
-using Microsoft.AspNetCore.Http;
-using Sapl.AspNetCore.Subscription;
+using Sapl.Core.Attributes;
+using Sapl.Core.Subscription;
 
-namespace Sapl.AspNetCore.Tests.Subscription;
+namespace Sapl.Core.Tests.Subscription;
 
 public class SubscriptionBuilderTests
 {
@@ -95,7 +95,7 @@ public class SubscriptionBuilderTests
     [Fact]
     void WhenFromPreEnforceAttributeThenUsesAttributeValues()
     {
-        var attr = new Sapl.AspNetCore.Attributes.PreEnforceAttribute
+        var attr = new PreEnforceAttribute
         {
             Action = "readPatient",
             Resource = "patient",
@@ -107,5 +107,69 @@ public class SubscriptionBuilderTests
 
         sub.Action.GetString().Should().Be("readPatient");
         sub.Resource.GetString().Should().Be("patient");
+    }
+
+    [Fact]
+    void WhenCustomizerAppliedThenModifiesSubscription()
+    {
+        var builder = new SubscriptionBuilder()
+            .WithStaticSubject("alice")
+            .WithStaticAction("read")
+            .WithStaticResource("doc");
+
+        var context = new SubscriptionContext { BearerToken = "my-jwt-token" };
+        new BearerTokenCustomizer().Customize(context, builder);
+        var sub = builder.Build(context);
+
+        sub.Secrets.Should().NotBeNull();
+        sub.Secrets!.Value.GetProperty("jwt").GetString().Should().Be("my-jwt-token");
+    }
+
+    [Fact]
+    void WhenCustomizerWithNoBearerTokenThenNoSecrets()
+    {
+        var builder = new SubscriptionBuilder()
+            .WithStaticSubject("alice")
+            .WithStaticAction("export")
+            .WithStaticResource("data");
+
+        var context = new SubscriptionContext();
+        new BearerTokenCustomizer().Customize(context, builder);
+        var sub = builder.Build(context);
+
+        sub.Secrets.Should().BeNull();
+    }
+
+    [Fact]
+    void WhenCustomizerOverridesSubjectThenCallbackWins()
+    {
+        var builder = SubscriptionBuilder.FromAttribute(new PreEnforceAttribute
+        {
+            Subject = "original",
+            Action = "read",
+        });
+
+        var context = new SubscriptionContext();
+        new SubjectOverrideCustomizer().Customize(context, builder);
+        var sub = builder.Build(context);
+
+        sub.Subject.GetString().Should().Be("customized-subject");
+    }
+
+    private sealed class BearerTokenCustomizer : ISubscriptionCustomizer
+    {
+        public void Customize(SubscriptionContext context, SubscriptionBuilder builder)
+        {
+            if (context.BearerToken is not null)
+                builder.WithStaticSecrets(new { jwt = context.BearerToken });
+        }
+    }
+
+    private sealed class SubjectOverrideCustomizer : ISubscriptionCustomizer
+    {
+        public void Customize(SubscriptionContext context, SubscriptionBuilder builder)
+        {
+            builder.WithSubject(_ => "customized-subject");
+        }
     }
 }

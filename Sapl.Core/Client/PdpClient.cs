@@ -166,11 +166,14 @@ public sealed class PdpClient : IPolicyDecisionPoint, IDisposable
         var body = subscription.ToJsonString();
         _logger.LogDebug("MultiDecide (streaming): {Subscription}", subscription.ToLoggableString());
 
+        var previousBySubscription = new Dictionary<string, AuthorizationDecision>();
+
         await foreach (var data in StreamWithRetryAsync(
             _multiDecideUrl, body, cancellationToken).ConfigureAwait(false))
         {
             if (data is null)
             {
+                previousBySubscription.Clear();
                 foreach (var id in subscription.Subscriptions.Keys)
                 {
                     yield return new IdentifiableAuthorizationDecision
@@ -185,6 +188,12 @@ public sealed class PdpClient : IPolicyDecisionPoint, IDisposable
             var decision = ResponseValidator.ParseIdentifiableDecisionFromJson(data, _logger);
             if (decision is not null)
             {
+                if (previousBySubscription.TryGetValue(decision.SubscriptionId, out var prev)
+                    && decision.Decision.Equals(prev))
+                {
+                    continue;
+                }
+                previousBySubscription[decision.SubscriptionId] = decision.Decision;
                 yield return decision;
             }
         }

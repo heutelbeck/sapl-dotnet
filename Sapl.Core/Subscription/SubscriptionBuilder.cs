@@ -1,8 +1,7 @@
-using System.Text.Json;
-using Microsoft.AspNetCore.Http;
+using Sapl.Core.Attributes;
 using Sapl.Core.Authorization;
 
-namespace Sapl.AspNetCore.Subscription;
+namespace Sapl.Core.Subscription;
 
 public sealed class SubscriptionBuilder
 {
@@ -90,9 +89,9 @@ public sealed class SubscriptionBuilder
 
     private static object DefaultSubject(SubscriptionContext context)
     {
-        if (context.HttpContext?.User.Identity?.IsAuthenticated == true)
+        if (context.Principal?.Identity?.IsAuthenticated == true)
         {
-            var claims = context.HttpContext.User.Claims
+            var claims = context.Principal.Claims
                 .GroupBy(c => c.Type)
                 .ToDictionary(g => g.Key, g => g.Count() == 1 ? (object)g.First().Value : g.Select(c => c.Value).ToArray());
             return claims.Count > 0 ? claims : "anonymous";
@@ -114,9 +113,9 @@ public sealed class SubscriptionBuilder
             result["controller"] = context.ClassName;
         }
 
-        if (context.HttpContext is not null)
+        if (context.Properties.TryGetValue("httpMethod", out var httpMethod) && httpMethod is not null)
         {
-            result["httpMethod"] = context.HttpContext.Request.Method;
+            result["httpMethod"] = httpMethod;
         }
 
         return result.Count > 0 ? result : "unknown";
@@ -124,56 +123,74 @@ public sealed class SubscriptionBuilder
 
     private static object DefaultResource(SubscriptionContext context)
     {
-        if (context.HttpContext is null)
-            return "unknown";
+        var result = new Dictionary<string, object?>();
 
-        var result = new Dictionary<string, object?>
+        if (context.Properties.TryGetValue("path", out var path) && path is not null)
         {
-            ["path"] = context.HttpContext.Request.Path.Value,
-        };
-
-        var routeValues = context.HttpContext.Request.RouteValues;
-        if (routeValues.Count > 0)
-        {
-            result["params"] = routeValues.ToDictionary(kv => kv.Key, kv => kv.Value?.ToString());
+            result["path"] = path;
         }
 
-        var query = context.HttpContext.Request.Query;
-        if (query.Count > 0)
+        if (context.Properties.TryGetValue("params", out var routeParams) && routeParams is not null)
         {
-            result["query"] = query.ToDictionary(kv => kv.Key, kv => kv.Value.ToString());
+            result["params"] = routeParams;
         }
 
-        return result;
+        if (context.Properties.TryGetValue("query", out var query) && query is not null)
+        {
+            result["query"] = query;
+        }
+
+        return result.Count > 0 ? result : "unknown";
     }
 
-    public static SubscriptionBuilder FromAttribute(
-        Attributes.PreEnforceAttribute attr)
+    public static SubscriptionBuilder FromAttribute(PreEnforceAttribute attr)
     {
         var builder = new SubscriptionBuilder();
-        if (attr.Subject is not null)
-            builder.WithStaticSubject(attr.Subject);
-        if (attr.Action is not null)
-            builder.WithStaticAction(attr.Action);
-        if (attr.Resource is not null)
-            builder.WithStaticResource(attr.Resource);
-        if (attr.Environment is not null)
-            builder.WithStaticEnvironment(attr.Environment);
+        ApplyStaticValues(builder, attr.Subject, attr.Action, attr.Resource, attr.Environment, attr.Secrets);
         return builder;
     }
 
-    public static SubscriptionBuilder FromAttribute(
-        Attributes.PostEnforceAttribute attr)
+    public static SubscriptionBuilder FromAttribute(PostEnforceAttribute attr)
     {
         var builder = new SubscriptionBuilder();
-        if (attr.Subject is not null)
-            builder.WithStaticSubject(attr.Subject);
-        if (attr.Action is not null)
-            builder.WithStaticAction(attr.Action);
-        if (attr.Resource is not null)
-            builder.WithStaticResource(attr.Resource);
-        if (attr.Environment is not null)
-            builder.WithStaticEnvironment(attr.Environment);
+        ApplyStaticValues(builder, attr.Subject, attr.Action, attr.Resource, attr.Environment, attr.Secrets);
         return builder;
+    }
+
+    public static SubscriptionBuilder FromAttribute(EnforceTillDeniedAttribute attr)
+    {
+        var builder = new SubscriptionBuilder();
+        ApplyStaticValues(builder, attr.Subject, attr.Action, attr.Resource, attr.Environment, attr.Secrets);
+        return builder;
+    }
+
+    public static SubscriptionBuilder FromAttribute(EnforceDropWhileDeniedAttribute attr)
+    {
+        var builder = new SubscriptionBuilder();
+        ApplyStaticValues(builder, attr.Subject, attr.Action, attr.Resource, attr.Environment, attr.Secrets);
+        return builder;
+    }
+
+    public static SubscriptionBuilder FromAttribute(EnforceRecoverableIfDeniedAttribute attr)
+    {
+        var builder = new SubscriptionBuilder();
+        ApplyStaticValues(builder, attr.Subject, attr.Action, attr.Resource, attr.Environment, attr.Secrets);
+        return builder;
+    }
+
+    private static void ApplyStaticValues(
+        SubscriptionBuilder builder, string? subject, string? action, string? resource, string? environment,
+        string? secrets)
+    {
+        if (subject is not null)
+            builder.WithStaticSubject(subject);
+        if (action is not null)
+            builder.WithStaticAction(action);
+        if (resource is not null)
+            builder.WithStaticResource(resource);
+        if (environment is not null)
+            builder.WithStaticEnvironment(environment);
+        if (secrets is not null)
+            builder.WithStaticSecrets(secrets);
     }
 }

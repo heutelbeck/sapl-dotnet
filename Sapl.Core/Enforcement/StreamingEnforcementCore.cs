@@ -163,7 +163,7 @@ public sealed class StreamingEnforcementCore
                         sourceTask = Task.Run(
                             () => ReadSourceStream(
                                 sourceFactory, writer, () => currentBundle, () => accessState,
-                                () => terminated, sourceCts.Token),
+                                () => terminated, mode, sourceCts.Token),
                             sourceCts.Token);
                     }
                 }
@@ -242,6 +242,7 @@ public sealed class StreamingEnforcementCore
         Func<StreamingConstraintHandlerBundle?> getBundle,
         Func<AccessState> getAccessState,
         Func<bool> isTerminated,
+        StreamingMode mode,
         CancellationToken cancellationToken)
     {
         try
@@ -280,6 +281,13 @@ public sealed class StreamingEnforcementCore
                 catch (Exception ex)
                 {
                     _logger.LogWarning(ex, "Constraint handler failed on stream item.");
+                    if (mode == StreamingMode.TillDenied)
+                    {
+                        await writer.WriteAsync(
+                            StreamItem<T>.WithError(new AccessDeniedException("On-next obligation handler failed.")),
+                            cancellationToken).ConfigureAwait(false);
+                        return;
+                    }
                 }
             }
         }

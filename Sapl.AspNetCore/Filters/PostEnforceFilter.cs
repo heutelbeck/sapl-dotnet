@@ -2,21 +2,21 @@ using System.Text.Json;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Filters;
 using Microsoft.Extensions.Logging;
-using Sapl.AspNetCore.Attributes;
-using Sapl.AspNetCore.Subscription;
-using Sapl.Core.Authorization;
-using Sapl.Core.Enforcement;
+using Sapl.Core.Attributes;
+using Sapl.Core.Constraints;
+using Sapl.Core.Interception;
+using Sapl.Core.Subscription;
 
 namespace Sapl.AspNetCore.Filters;
 
 public sealed class PostEnforceFilter : IAsyncResultFilter
 {
-    private readonly EnforcementEngine _engine;
+    private readonly SaplMethodInterceptor _interceptor;
     private readonly ILogger<PostEnforceFilter> _logger;
 
-    public PostEnforceFilter(EnforcementEngine engine, ILogger<PostEnforceFilter> logger)
+    public PostEnforceFilter(SaplMethodInterceptor interceptor, ILogger<PostEnforceFilter> logger)
     {
-        _engine = engine;
+        _interceptor = interceptor;
         _logger = logger;
     }
 
@@ -37,41 +37,34 @@ public sealed class PostEnforceFilter : IAsyncResultFilter
 
         var subContext = new SubscriptionContext
         {
-            HttpContext = context.HttpContext,
+            Principal = context.HttpContext.User,
             MethodName = context.ActionDescriptor.DisplayName,
             ClassName = context.Controller?.GetType().Name,
-            ReturnValue = returnValue,
+            BearerToken = ExtractBearerToken(context.HttpContext),
+            Properties = BuildProperties(context.HttpContext),
         };
 
-        var builder = SubscriptionBuilder.FromAttribute(attr);
+        try
+        {
+            var captured = returnValue;
+            var result = await _interceptor.PostEnforceAsync(
+                attr, subContext, () => Task.FromResult(captured),
+                context.HttpContext.RequestAborted).ConfigureAwait(false);
 
-        var subscription = builder.Build(subContext);
-
-        var element = returnValue is not null
-            ? JsonSerializer.SerializeToElement(returnValue, SerializerDefaults.Options)
-            : JsonDocument.Parse("null").RootElement;
-
-        var result = await _engine.PostEnforceAsync(
-            subscription,
-            element,
-            context.HttpContext.RequestAborted).ConfigureAwait(false);
-
-        if (!result.IsPermitted)
+            if (result is JsonElement resultElement)
+            {
+                context.Result = new ContentResult
+                {
+                    Content = resultElement.GetRawText(),
+                    ContentType = "application/json",
+                    StatusCode = 200,
+                };
+            }
+        }
+        catch (AccessDeniedException)
         {
             _logger.LogDebug("PostEnforce denied access to {Action}.", context.ActionDescriptor.DisplayName);
             context.Result = new StatusCodeResult(403);
-            await next().ConfigureAwait(false);
-            return;
-        }
-
-        if (result.Value is JsonElement resultElement)
-        {
-            context.Result = new ContentResult
-            {
-                Content = resultElement.GetRawText(),
-                ContentType = "application/json",
-                StatusCode = 200,
-            };
         }
 
         await next().ConfigureAwait(false);
@@ -85,5 +78,38 @@ public sealed class PostEnforceFilter : IAsyncResultFilter
                 return attr;
         }
         return null;
+    }
+
+    private static string? ExtractBearerToken(Microsoft.AspNetCore.Http.HttpContext httpContext)
+    {
+        var auth = httpContext.Request.Headers.Authorization.FirstOrDefault();
+        if (auth is not null && auth.StartsWith("Bearer ", StringComparison.OrdinalIgnoreCase))
+        {
+            return auth["Bearer ".Length..];
+        }
+        return null;
+    }
+
+    private static Dictionary<string, object?> BuildProperties(Microsoft.AspNetCore.Http.HttpContext httpContext)
+    {
+        var properties = new Dictionary<string, object?>
+        {
+            ["path"] = httpContext.Request.Path.Value,
+            ["httpMethod"] = httpContext.Request.Method,
+        };
+
+        var routeValues = httpContext.Request.RouteValues;
+        if (routeValues.Count > 0)
+        {
+            properties["params"] = routeValues.ToDictionary(kv => kv.Key, kv => kv.Value?.ToString());
+        }
+
+        var query = httpContext.Request.Query;
+        if (query.Count > 0)
+        {
+            properties["query"] = query.ToDictionary(kv => kv.Key, kv => kv.Value.ToString());
+        }
+
+        return properties;
     }
 }

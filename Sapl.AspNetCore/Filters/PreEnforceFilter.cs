@@ -1,22 +1,22 @@
-using Microsoft.AspNetCore.Http;
+using System.Text.Json;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Filters;
 using Microsoft.Extensions.Logging;
-using Sapl.AspNetCore.Attributes;
-using Sapl.AspNetCore.Subscription;
+using Sapl.Core.Attributes;
 using Sapl.Core.Constraints;
-using Sapl.Core.Enforcement;
+using Sapl.Core.Interception;
+using Sapl.Core.Subscription;
 
 namespace Sapl.AspNetCore.Filters;
 
 public sealed class PreEnforceFilter : IAsyncActionFilter
 {
-    private readonly EnforcementEngine _engine;
+    private readonly SaplMethodInterceptor _interceptor;
     private readonly ILogger<PreEnforceFilter> _logger;
 
-    public PreEnforceFilter(EnforcementEngine engine, ILogger<PreEnforceFilter> logger)
+    public PreEnforceFilter(SaplMethodInterceptor interceptor, ILogger<PreEnforceFilter> logger)
     {
-        _engine = engine;
+        _interceptor = interceptor;
         _logger = logger;
     }
 
@@ -31,95 +31,68 @@ public sealed class PreEnforceFilter : IAsyncActionFilter
 
         var subContext = new SubscriptionContext
         {
-            HttpContext = context.HttpContext,
+            Principal = context.HttpContext.User,
             MethodName = context.ActionDescriptor.DisplayName,
             ClassName = context.Controller?.GetType().Name,
             MethodArguments = context.ActionArguments,
+            BearerToken = ExtractBearerToken(context.HttpContext),
+            Properties = BuildProperties(context.HttpContext),
         };
 
-        var builder = SubscriptionBuilder.FromAttribute(attr);
-        var subscription = builder.Build(subContext);
+        var args = context.ActionArguments.Values.ToArray();
+        ActionExecutedContext? executedCtx = null;
 
-        var result = await _engine.PreEnforceAsync(subscription, context.HttpContext.RequestAborted)
-            .ConfigureAwait(false);
-
-        if (!result.IsPermitted)
+        try
         {
-            _logger.LogDebug("PreEnforce denied access to {Action}.", context.ActionDescriptor.DisplayName);
-            context.Result = new StatusCodeResult(403);
-            return;
-        }
-
-        if (result.Bundle is not null)
-        {
-            if (result.Bundle.HasResourceReplacement)
-            {
-                _logger.LogDebug("PreEnforce: returning PDP-provided resource replacement.");
-                context.Result = new ContentResult
+            var result = await _interceptor.PreEnforceAsync(
+                attr, subContext, async updatedArgs =>
                 {
-                    Content = result.Bundle.ResourceReplacement!.Value.GetRawText(),
-                    ContentType = "application/json",
-                    StatusCode = 200,
-                };
-                return;
-            }
+                    for (var i = 0; i < updatedArgs.Length; i++)
+                    {
+                        var keys = context.ActionArguments.Keys.ToArray();
+                        if (i < keys.Length)
+                        {
+                            context.ActionArguments[keys[i]] = updatedArgs[i];
+                        }
+                    }
 
-            var miContext = new Core.Constraints.Api.MethodInvocationContext(
-                context.ActionArguments.Values.ToArray(),
-                subContext.MethodName ?? "unknown",
-                subContext.ClassName,
-                context.HttpContext.Request);
-            result.Bundle.HandleMethodInvocationHandlers(miContext);
+                    executedCtx = await next().ConfigureAwait(false);
 
-            for (var i = 0; i < miContext.Args.Length; i++)
+                    if (executedCtx.Exception is not null)
+                    {
+                        throw executedCtx.Exception;
+                    }
+
+                    return (executedCtx.Result as ObjectResult)?.Value;
+                }, args, context.HttpContext.RequestAborted).ConfigureAwait(false);
+
+            if (executedCtx is not null)
             {
-                var keys = context.ActionArguments.Keys.ToArray();
-                if (i < keys.Length)
+                if (result is JsonElement jsonElement)
                 {
-                    context.ActionArguments[keys[i]] = miContext.Args[i];
-                }
-            }
-        }
-
-        var executedContext = await next().ConfigureAwait(false);
-
-        if (executedContext.Exception is not null && result.Bundle is not null)
-        {
-            var transformed = result.Bundle.HandleAllOnErrorConstraints(executedContext.Exception);
-            executedContext.ExceptionHandled = true;
-            context.HttpContext.Response.StatusCode = 500;
-            context.HttpContext.Response.ContentType = "application/json";
-            await context.HttpContext.Response.WriteAsync(
-                System.Text.Json.JsonSerializer.Serialize(new { error = transformed.Message }));
-            return;
-        }
-
-        if (executedContext.Result is ObjectResult objectResult && objectResult.Value is not null
-            && result.Bundle is not null)
-        {
-            try
-            {
-                var transformed = result.Bundle.HandleAllOnNextConstraints(objectResult.Value);
-                result.Bundle.CheckFailedObligations();
-
-                if (transformed is System.Text.Json.JsonElement jsonElement)
-                {
-                    executedContext.Result = new ContentResult
+                    executedCtx.Result = new ContentResult
                     {
                         Content = jsonElement.GetRawText(),
                         ContentType = "application/json",
-                        StatusCode = objectResult.StatusCode ?? 200,
+                        StatusCode = 200,
                     };
                 }
-                else
+                else if (result is not null)
                 {
-                    objectResult.Value = transformed;
+                    executedCtx.Result = new ObjectResult(result);
                 }
             }
-            catch (AccessDeniedException ex)
+        }
+        catch (AccessDeniedException)
+        {
+            _logger.LogDebug("PreEnforce denied access to {Action}.", context.ActionDescriptor.DisplayName);
+            if (executedCtx is not null)
             {
-                _logger.LogDebug(ex, "PreEnforce denied due to post-execution constraint handling.");
-                executedContext.Result = new StatusCodeResult(403);
+                executedCtx.Result = new StatusCodeResult(403);
+            }
+            else
+            {
+                context.Result = new StatusCodeResult(403);
             }
         }
     }
@@ -132,5 +105,39 @@ public sealed class PreEnforceFilter : IAsyncActionFilter
                 return attr;
         }
         return null;
+    }
+
+    private static string? ExtractBearerToken(Microsoft.AspNetCore.Http.HttpContext httpContext)
+    {
+        var auth = httpContext.Request.Headers.Authorization.FirstOrDefault();
+        if (auth is not null && auth.StartsWith("Bearer ", StringComparison.OrdinalIgnoreCase))
+        {
+            return auth["Bearer ".Length..];
+        }
+        return null;
+    }
+
+    private static Dictionary<string, object?> BuildProperties(Microsoft.AspNetCore.Http.HttpContext httpContext)
+    {
+        var properties = new Dictionary<string, object?>
+        {
+            ["path"] = httpContext.Request.Path.Value,
+            ["httpMethod"] = httpContext.Request.Method,
+            ["request"] = httpContext.Request,
+        };
+
+        var routeValues = httpContext.Request.RouteValues;
+        if (routeValues.Count > 0)
+        {
+            properties["params"] = routeValues.ToDictionary(kv => kv.Key, kv => kv.Value?.ToString());
+        }
+
+        var query = httpContext.Request.Query;
+        if (query.Count > 0)
+        {
+            properties["query"] = query.ToDictionary(kv => kv.Key, kv => kv.Value.ToString());
+        }
+
+        return properties;
     }
 }
