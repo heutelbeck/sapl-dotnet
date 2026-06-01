@@ -5,10 +5,11 @@ using System.Text.Json;
 using System.Threading.Channels;
 using Microsoft.Extensions.Logging;
 using Sapl.Core.Authorization;
+using Sapl.Core.Client.Auth;
 
 namespace Sapl.Core.Client;
 
-public sealed class PdpClient : IPolicyDecisionPoint, IDisposable
+public sealed class PdpClient : IPolicyDecisionPoint
 {
     internal const string ErrorAuthFailed = "PDP authentication failed. Check token or username/secret configuration.";
     internal const string ErrorConnectionTimeout = "PDP connection timed out after {TimeoutMs}ms.";
@@ -17,7 +18,6 @@ public sealed class PdpClient : IPolicyDecisionPoint, IDisposable
 
     private const string ApiDecideOnce = "/api/pdp/decide-once";
     private const string ApiDecide = "/api/pdp/decide";
-    private const string ApiMultiDecideOnce = "/api/pdp/multi-decide-once";
     private const string ApiMultiDecide = "/api/pdp/multi-decide";
     private const string ApiMultiDecideAllOnce = "/api/pdp/multi-decide-all-once";
     private const string ApiMultiDecideAll = "/api/pdp/multi-decide-all";
@@ -29,12 +29,11 @@ public sealed class PdpClient : IPolicyDecisionPoint, IDisposable
     private readonly PdpClientOptions _options;
     private readonly string _decideOnceUrl;
     private readonly string _decideUrl;
-    private readonly string _multiDecideOnceUrl;
     private readonly string _multiDecideUrl;
     private readonly string _multiDecideAllOnceUrl;
     private readonly string _multiDecideAllUrl;
     private readonly AuthenticationHeaderValue? _authHeader;
-    private bool _disposed;
+    private readonly IAccessTokenProvider? _tokenProvider;
 
     public PdpClient(
         IHttpClientFactory httpClientFactory,
@@ -50,12 +49,12 @@ public sealed class PdpClient : IPolicyDecisionPoint, IDisposable
         var baseUrl = options.BaseUrl.TrimEnd('/');
         _decideOnceUrl = baseUrl + ApiDecideOnce;
         _decideUrl = baseUrl + ApiDecide;
-        _multiDecideOnceUrl = baseUrl + ApiMultiDecideOnce;
         _multiDecideUrl = baseUrl + ApiMultiDecide;
         _multiDecideAllOnceUrl = baseUrl + ApiMultiDecideAllOnce;
         _multiDecideAllUrl = baseUrl + ApiMultiDecideAll;
 
         _authHeader = BuildAuthHeader(options);
+        _tokenProvider = options.TokenProvider;
 
         if (new Uri(baseUrl).Scheme == Uri.UriSchemeHttp)
         {
@@ -67,8 +66,6 @@ public sealed class PdpClient : IPolicyDecisionPoint, IDisposable
         AuthorizationSubscription subscription,
         CancellationToken cancellationToken = default)
     {
-        ObjectDisposedException.ThrowIf(_disposed, this);
-
         var body = subscription.ToJsonString();
         _logger.LogDebug("DecideOnce: {Subscription}", subscription.ToLoggableString());
 
@@ -87,8 +84,6 @@ public sealed class PdpClient : IPolicyDecisionPoint, IDisposable
         AuthorizationSubscription subscription,
         [EnumeratorCancellation] CancellationToken cancellationToken = default)
     {
-        ObjectDisposedException.ThrowIf(_disposed, this);
-
         var body = subscription.ToJsonString();
         _logger.LogDebug("Decide (streaming): {Subscription}", subscription.ToLoggableString());
 
@@ -117,33 +112,11 @@ public sealed class PdpClient : IPolicyDecisionPoint, IDisposable
         }
     }
 
-    public async Task<MultiAuthorizationDecision> MultiDecideOnceAsync(
-        MultiAuthorizationSubscription subscription,
-        CancellationToken cancellationToken = default)
-    {
-        ObjectDisposedException.ThrowIf(_disposed, this);
-
-        var body = subscription.ToJsonString();
-        _logger.LogDebug("MultiDecideOnce: {Subscription}", subscription.ToLoggableString());
-
-        var result = await FetchOnceAsync(_multiDecideOnceUrl, body, cancellationToken).ConfigureAwait(false);
-        if (result is null)
-        {
-            return MultiAuthorizationDecision.IndeterminateForAll(subscription);
-        }
-
-        var parsed = ResponseValidator.ParseMultiDecisionFromJson(
-            result.Value.GetRawText(), _logger);
-        return parsed ?? MultiAuthorizationDecision.IndeterminateForAll(subscription);
-    }
-
     public async Task<MultiAuthorizationDecision> MultiDecideAllOnceAsync(
         MultiAuthorizationSubscription subscription,
         CancellationToken cancellationToken = default)
     {
-        ObjectDisposedException.ThrowIf(_disposed, this);
-
-        var body = subscription.ToJsonString();
+        var body = subscription.ToWireJson();
         _logger.LogDebug("MultiDecideAllOnce: {Subscription}", subscription.ToLoggableString());
 
         var result = await FetchOnceAsync(_multiDecideAllOnceUrl, body, cancellationToken).ConfigureAwait(false);
@@ -161,9 +134,7 @@ public sealed class PdpClient : IPolicyDecisionPoint, IDisposable
         MultiAuthorizationSubscription subscription,
         [EnumeratorCancellation] CancellationToken cancellationToken = default)
     {
-        ObjectDisposedException.ThrowIf(_disposed, this);
-
-        var body = subscription.ToJsonString();
+        var body = subscription.ToWireJson();
         _logger.LogDebug("MultiDecide (streaming): {Subscription}", subscription.ToLoggableString());
 
         var previousBySubscription = new Dictionary<string, AuthorizationDecision>();
@@ -203,9 +174,7 @@ public sealed class PdpClient : IPolicyDecisionPoint, IDisposable
         MultiAuthorizationSubscription subscription,
         [EnumeratorCancellation] CancellationToken cancellationToken = default)
     {
-        ObjectDisposedException.ThrowIf(_disposed, this);
-
-        var body = subscription.ToJsonString();
+        var body = subscription.ToWireJson();
         _logger.LogDebug("MultiDecideAll (streaming): {Subscription}", subscription.ToLoggableString());
 
         MultiAuthorizationDecision? previous = null;
@@ -230,11 +199,6 @@ public sealed class PdpClient : IPolicyDecisionPoint, IDisposable
         }
     }
 
-    public void Dispose()
-    {
-        _disposed = true;
-    }
-
     private async Task<JsonElement?> FetchOnceAsync(
         string url,
         string body,
@@ -247,6 +211,7 @@ public sealed class PdpClient : IPolicyDecisionPoint, IDisposable
         {
             using var request = CreateRequest(HttpMethod.Post, url, body);
             request.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
+            await ApplyAuthorizationAsync(request, cts.Token).ConfigureAwait(false);
 
             var client = _httpClientFactory.CreateClient("SaplPdp");
             using var response = await client.SendAsync(request, cts.Token).ConfigureAwait(false);
@@ -255,6 +220,7 @@ public sealed class PdpClient : IPolicyDecisionPoint, IDisposable
                 or System.Net.HttpStatusCode.Forbidden)
             {
                 _logger.LogError(ErrorAuthFailed);
+                _tokenProvider?.Invalidate();
             }
 
             if (!response.IsSuccessStatusCode)
@@ -367,6 +333,7 @@ public sealed class PdpClient : IPolicyDecisionPoint, IDisposable
         {
             using var request = CreateRequest(HttpMethod.Post, url, body);
             request.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("text/event-stream"));
+            await ApplyAuthorizationAsync(request, connectCts.Token).ConfigureAwait(false);
 
             var client = _httpClientFactory.CreateClient("SaplPdp");
             response = await client.SendAsync(
@@ -380,6 +347,7 @@ public sealed class PdpClient : IPolicyDecisionPoint, IDisposable
                 or System.Net.HttpStatusCode.Forbidden)
             {
                 _logger.LogError(ErrorAuthFailed);
+                _tokenProvider?.Invalidate();
                 return;
             }
 
@@ -440,17 +408,23 @@ public sealed class PdpClient : IPolicyDecisionPoint, IDisposable
         return (int)Math.Round(baseDelay * (0.5 + jitter));
     }
 
-    private HttpRequestMessage CreateRequest(HttpMethod method, string url, string body)
-    {
-        var request = new HttpRequestMessage(method, url)
+    private static HttpRequestMessage CreateRequest(HttpMethod method, string url, string body) =>
+        new(method, url)
         {
             Content = new StringContent(body, Encoding.UTF8, "application/json"),
         };
-        if (_authHeader is not null)
+
+    private async ValueTask ApplyAuthorizationAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+    {
+        if (_tokenProvider is not null)
+        {
+            var token = await _tokenProvider.GetAccessTokenAsync(cancellationToken).ConfigureAwait(false);
+            request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
+        }
+        else if (_authHeader is not null)
         {
             request.Headers.Authorization = _authHeader;
         }
-        return request;
     }
 
     private static AuthenticationHeaderValue? BuildAuthHeader(PdpClientOptions options)

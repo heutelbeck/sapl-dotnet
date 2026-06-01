@@ -32,22 +32,18 @@ public class PdpClientOptionsTests
     }
 
     [Fact]
-    void WhenHttpWithoutFlagThenThrows()
+    void WhenHttpToNonLoopbackHostThenThrows()
     {
-        var options = new PdpClientOptions { BaseUrl = "http://localhost:8443" };
+        var options = new PdpClientOptions { BaseUrl = "http://pdp.example.com:8080" };
         var act = () => options.Validate();
         act.Should().Throw<ArgumentException>()
             .WithMessage("*" + PdpClientOptions.ErrorInsecureHttp + "*");
     }
 
     [Fact]
-    void WhenHttpWithFlagThenPasses()
+    void WhenHttpToLoopbackHostThenPasses()
     {
-        var options = new PdpClientOptions
-        {
-            BaseUrl = "http://localhost:8443",
-            AllowInsecureConnections = true,
-        };
+        var options = new PdpClientOptions { BaseUrl = "http://localhost:8443" };
         var act = () => options.Validate();
         act.Should().NotThrow();
     }
@@ -126,6 +122,5 @@ public class PdpClientOptionsTests
         options.StreamingRetryBaseDelayMs.Should().Be(1000);
         options.StreamingRetryMaxDelayMs.Should().Be(30000);
         options.StreamingMaxRetries.Should().Be(0);
-        options.AllowInsecureConnections.Should().BeFalse();
     }
 }

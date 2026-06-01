@@ -4,10 +4,10 @@ using Sapl.Core.Authorization;
 
 namespace Sapl.Core.Client;
 
-public static class ResponseValidator
+internal static class ResponseValidator
 {
     private static readonly HashSet<string> ValidDecisions =
-        ["PERMIT", "DENY", "INDETERMINATE", "NOT_APPLICABLE"];
+        ["PERMIT", "DENY", "INDETERMINATE", "NOT_APPLICABLE", "SUSPEND"];
 
     internal const string ErrorDecisionFieldMissing = "PDP response has no 'decision' field.";
     internal const string ErrorDecisionNotObject = "PDP response is not a JSON object.";
@@ -107,19 +107,19 @@ public static class ResponseValidator
                 return null;
             }
 
-            if (!root.TryGetProperty("authorizationSubscriptionId", out var idProp) ||
+            if (!root.TryGetProperty("subscriptionId", out var idProp) ||
                 idProp.ValueKind != JsonValueKind.String ||
                 string.IsNullOrEmpty(idProp.GetString()))
             {
-                logger.LogWarning("PDP response missing authorizationSubscriptionId.");
+                logger.LogWarning("PDP response missing subscriptionId.");
                 return null;
             }
 
             var subscriptionId = idProp.GetString()!;
 
-            if (!root.TryGetProperty("authorizationDecision", out var decProp))
+            if (!root.TryGetProperty("decision", out var decProp))
             {
-                logger.LogWarning("PDP response missing authorizationDecision for subscription {Id}.", subscriptionId);
+                logger.LogWarning("PDP response missing decision for subscription {Id}.", subscriptionId);
                 return null;
             }
 
@@ -153,15 +153,9 @@ public static class ResponseValidator
                 return null;
             }
 
-            if (!root.TryGetProperty("decisions", out var decisionsProp) ||
-                decisionsProp.ValueKind != JsonValueKind.Object)
-            {
-                logger.LogWarning("PDP multi-decision response missing 'decisions' object.");
-                return null;
-            }
-
+            // The node returns the bare id-to-decision map with no envelope.
             var decisions = new Dictionary<string, AuthorizationDecision>();
-            foreach (var prop in decisionsProp.EnumerateObject())
+            foreach (var prop in root.EnumerateObject())
             {
                 decisions[prop.Name] = ValidateDecisionResponse(prop.Value, logger);
             }

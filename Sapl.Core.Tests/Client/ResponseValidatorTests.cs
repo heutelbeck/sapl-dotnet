@@ -128,8 +128,8 @@ public class ResponseValidatorTests
     {
         var json = """
             {
-                "authorizationSubscriptionId":"sub-1",
-                "authorizationDecision":{"decision":"PERMIT"}
+                "subscriptionId":"sub-1",
+                "decision":{"decision":"PERMIT"}
             }
             """;
         var result = ResponseValidator.ParseIdentifiableDecisionFromJson(json, _logger);
@@ -142,7 +142,7 @@ public class ResponseValidatorTests
     [Fact]
     void WhenIdentifiableDecisionMissingIdThenReturnsNull()
     {
-        var json = """{"authorizationDecision":{"decision":"PERMIT"}}""";
+        var json = """{"decision":{"decision":"PERMIT"}}""";
         var result = ResponseValidator.ParseIdentifiableDecisionFromJson(json, _logger);
         result.Should().BeNull();
     }
@@ -150,7 +150,7 @@ public class ResponseValidatorTests
     [Fact]
     void WhenIdentifiableDecisionMissingDecisionThenReturnsNull()
     {
-        var json = """{"authorizationSubscriptionId":"sub-1"}""";
+        var json = """{"subscriptionId":"sub-1"}""";
         var result = ResponseValidator.ParseIdentifiableDecisionFromJson(json, _logger);
         result.Should().BeNull();
     }
@@ -160,10 +160,8 @@ public class ResponseValidatorTests
     {
         var json = """
             {
-                "decisions":{
-                    "sub-1":{"decision":"PERMIT"},
-                    "sub-2":{"decision":"DENY"}
-                }
+                "sub-1":{"decision":"PERMIT"},
+                "sub-2":{"decision":"DENY"}
             }
             """;
         var result = ResponseValidator.ParseMultiDecisionFromJson(json, _logger);
@@ -175,9 +173,9 @@ public class ResponseValidatorTests
     }
 
     [Fact]
-    void WhenMultiDecisionMissingDecisionsFieldThenReturnsNull()
+    void WhenMultiDecisionRootNotObjectThenReturnsNull()
     {
-        var json = """{"other":"field"}""";
+        var json = """["sub-1","sub-2"]""";
         var result = ResponseValidator.ParseMultiDecisionFromJson(json, _logger);
         result.Should().BeNull();
     }
@@ -187,10 +185,8 @@ public class ResponseValidatorTests
     {
         var json = """
             {
-                "decisions":{
-                    "sub-1":{"decision":"PERMIT"},
-                    "sub-2":{"decision":"INVALID"}
-                }
+                "sub-1":{"decision":"PERMIT"},
+                "sub-2":{"decision":"INVALID"}
             }
             """;
         var result = ResponseValidator.ParseMultiDecisionFromJson(json, _logger);

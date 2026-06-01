@@ -4,9 +4,9 @@ namespace Sapl.Core.Authorization;
 
 public sealed record IdentifiableAuthorizationDecision
 {
-    [JsonPropertyName("authorizationSubscriptionId")]
+    [JsonPropertyName("subscriptionId")]
     public required string SubscriptionId { get; init; }
 
-    [JsonPropertyName("authorizationDecision")]
+    [JsonPropertyName("decision")]
     public required AuthorizationDecision Decision { get; init; }
 }

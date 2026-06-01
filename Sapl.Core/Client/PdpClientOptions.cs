@@ -1,12 +1,14 @@
+using Sapl.Core.Client.Auth;
+
 namespace Sapl.Core.Client;
 
 public sealed record PdpClientOptions
 {
     internal const string ErrorAuthBasicIncomplete = "Basic Auth requires both username and secret.";
-    internal const string ErrorAuthDualConfig = "Cannot configure both Bearer token and Basic Auth simultaneously.";
+    internal const string ErrorAuthDualConfig = "Configure at most one of Bearer token, Basic Auth, or a token provider.";
     internal const string ErrorBaseUrlEmpty = "PDP base URL must not be empty.";
     internal const string ErrorBaseUrlInvalid = "PDP base URL is not a valid URI: ";
-    internal const string ErrorInsecureHttp = "PDP base URL uses HTTP. Set AllowInsecureConnections = true to allow insecure connections.";
+    internal const string ErrorInsecureHttp = "PDP base URL uses plain HTTP to a non-loopback host. Use HTTPS, or run the PDP on localhost.";
 
     private const int DefaultTimeoutMs = 5000;
     private const int DefaultRetryBaseDelayMs = 1000;
@@ -28,7 +30,11 @@ public sealed record PdpClientOptions
 
     public int StreamingRetryMaxDelayMs { get; set; } = DefaultRetryMaxDelayMs;
 
-    public bool AllowInsecureConnections { get; set; }
+    /// <summary>
+    /// Resolves a rotating bearer token per request (e.g. OAuth2 client_credentials).
+    /// Mutually exclusive with <see cref="Token"/> and Basic Auth.
+    /// </summary>
+    public IAccessTokenProvider? TokenProvider { get; set; }
 
     public void Validate()
     {
@@ -42,7 +48,7 @@ public sealed record PdpClientOptions
             throw new ArgumentException(ErrorBaseUrlInvalid + BaseUrl);
         }
 
-        if (uri.Scheme == Uri.UriSchemeHttp && !AllowInsecureConnections)
+        if (uri.Scheme == Uri.UriSchemeHttp && !uri.IsLoopback)
         {
             throw new ArgumentException(ErrorInsecureHttp);
         }
@@ -50,8 +56,10 @@ public sealed record PdpClientOptions
         var hasToken = !string.IsNullOrWhiteSpace(Token);
         var hasUsername = !string.IsNullOrWhiteSpace(Username);
         var hasSecret = !string.IsNullOrWhiteSpace(Secret);
+        var hasProvider = TokenProvider is not null;
 
-        if (hasToken && (hasUsername || hasSecret))
+        var authSources = (hasToken ? 1 : 0) + (hasUsername || hasSecret ? 1 : 0) + (hasProvider ? 1 : 0);
+        if (authSources > 1)
         {
             throw new ArgumentException(ErrorAuthDualConfig);
         }

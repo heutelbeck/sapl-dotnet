@@ -2,7 +2,7 @@ using System.Text;
 
 namespace Sapl.Core.Client;
 
-public sealed class SseParser
+internal sealed class SseParser
 {
     internal const string ErrorBufferOverflow = "SSE buffer overflow: line exceeds maximum buffer size.";
 
@@ -36,21 +36,6 @@ public sealed class SseParser
         }
     }
 
-    public string? Flush()
-    {
-        if (_dataLines.Count == 0)
-            return null;
-        var result = string.Join("\n", _dataLines);
-        _dataLines.Clear();
-        return result;
-    }
-
-    public void Reset()
-    {
-        _buffer.Clear();
-        _dataLines.Clear();
-    }
-
     private IEnumerable<string> ProcessLine(string line)
     {
         if (line.StartsWith(':'))
@@ -79,18 +64,4 @@ public sealed class SseParser
     }
 }
 
-public sealed class SseBufferOverflowException : Exception
-{
-    public SseBufferOverflowException(string message) : base(message)
-    {
-    }
-
-    public SseBufferOverflowException(string message, Exception innerException)
-        : base(message, innerException)
-    {
-    }
-
-    public SseBufferOverflowException()
-    {
-    }
-}
+internal sealed class SseBufferOverflowException(string message) : Exception(message);

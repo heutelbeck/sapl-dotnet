@@ -154,14 +154,12 @@ public class PdpClientTests : IDisposable
     }
 
     [Fact]
-    async Task WhenMultiDecideOnceThenReturnsAllDecisions()
+    async Task WhenMultiDecideAllOnceThenReturnsAllDecisions()
     {
         _handler.ResponseBody = """
             {
-                "decisions":{
-                    "sub-1":{"decision":"PERMIT"},
-                    "sub-2":{"decision":"DENY"}
-                }
+                "sub-1":{"decision":"PERMIT"},
+                "sub-2":{"decision":"DENY"}
             }
             """;
         var client = CreateClient();
@@ -174,7 +172,7 @@ public class PdpClientTests : IDisposable
             },
         };
 
-        var result = await client.MultiDecideOnceAsync(multiSub);
+        var result = await client.MultiDecideAllOnceAsync(multiSub);
 
         result.Decisions.Should().HaveCount(2);
         result.Decisions["sub-1"].Decision.Should().Be(Decision.Permit);
@@ -182,7 +180,7 @@ public class PdpClientTests : IDisposable
     }
 
     [Fact]
-    async Task WhenMultiDecideOnceFailsThenReturnsIndeterminateForAll()
+    async Task WhenMultiDecideAllOnceFailsThenReturnsIndeterminateForAll()
     {
         _handler.StatusCode = HttpStatusCode.InternalServerError;
         _handler.ResponseBody = "error";
@@ -196,7 +194,7 @@ public class PdpClientTests : IDisposable
             },
         };
 
-        var result = await client.MultiDecideOnceAsync(multiSub);
+        var result = await client.MultiDecideAllOnceAsync(multiSub);
 
         result.Decisions.Should().HaveCount(2);
         result.Decisions["sub-1"].Decision.Should().Be(Decision.Indeterminate);
@@ -213,17 +211,6 @@ public class PdpClientTests : IDisposable
             Arg.Is<object>(o => o.ToString()!.Contains("insecure")),
             Arg.Any<Exception?>(),
             Arg.Any<Func<object, Exception?, string>>());
-    }
-
-    [Fact]
-    async Task WhenDisposedThenThrowsObjectDisposed()
-    {
-        var client = CreateClient();
-        client.Dispose();
-        var sub = AuthorizationSubscription.Create("alice", "read", "doc");
-
-        var act = () => client.DecideOnceAsync(sub);
-        await act.Should().ThrowAsync<ObjectDisposedException>();
     }
 
     public void Dispose()
@@ -250,7 +237,6 @@ public class PdpClientTests : IDisposable
         var options = new PdpClientOptions
         {
             BaseUrl = baseUrl,
-            AllowInsecureConnections = baseUrl.StartsWith("http://", StringComparison.Ordinal),
             TimeoutMs = timeoutMs,
             StreamingMaxRetries = 1,
             StreamingRetryBaseDelayMs = 10,

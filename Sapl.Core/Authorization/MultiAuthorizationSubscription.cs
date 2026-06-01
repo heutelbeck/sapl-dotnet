@@ -11,6 +11,13 @@ public sealed record MultiAuthorizationSubscription
     public string ToJsonString(JsonSerializerOptions? options = null) =>
         JsonSerializer.Serialize(this, options ?? SerializerDefaults.Options);
 
+    /// <summary>
+    /// The node wire format for every multi endpoint: the bare id-to-subscription
+    /// map with no envelope. The response is the matching bare id-to-decision map.
+    /// </summary>
+    public string ToWireJson(JsonSerializerOptions? options = null) =>
+        JsonSerializer.Serialize(Subscriptions, options ?? SerializerDefaults.Options);
+
     public string ToLoggableString(JsonSerializerOptions? options = null)
     {
         var loggable = new Dictionary<string, string>();

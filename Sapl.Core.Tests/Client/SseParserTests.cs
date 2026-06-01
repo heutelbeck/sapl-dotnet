@@ -83,17 +83,6 @@ public class SseParserTests
     }
 
     [Fact]
-    void WhenResetThenClearsState()
-    {
-        var parser = new SseParser();
-        parser.ProcessChunk("data: partial").ToList();
-        parser.Reset();
-        var results = parser.ProcessChunk("data: fresh\n\n").ToList();
-        results.Should().ContainSingle()
-            .Which.Should().Be("fresh");
-    }
-
-    [Fact]
     void WhenOnlyNewlinesThenNoOutput()
     {
         var parser = new SseParser();
@@ -108,21 +97,5 @@ public class SseParserTests
         var results = parser.ProcessChunk("data: test\r\r").ToList();
         results.Should().ContainSingle()
             .Which.Should().Be("test");
-    }
-
-    [Fact]
-    void WhenFlushWithPendingDataThenReturnsIt()
-    {
-        var parser = new SseParser();
-        parser.ProcessChunk("data: pending\n").ToList();
-        var flushed = parser.Flush();
-        flushed.Should().Be("pending");
-    }
-
-    [Fact]
-    void WhenFlushWithNoDataThenReturnsNull()
-    {
-        var parser = new SseParser();
-        parser.Flush().Should().BeNull();
     }
 }

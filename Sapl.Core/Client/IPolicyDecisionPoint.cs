@@ -12,10 +12,6 @@ public interface IPolicyDecisionPoint
         AuthorizationSubscription subscription,
         CancellationToken cancellationToken = default);
 
-    Task<MultiAuthorizationDecision> MultiDecideOnceAsync(
-        MultiAuthorizationSubscription subscription,
-        CancellationToken cancellationToken = default);
-
     Task<MultiAuthorizationDecision> MultiDecideAllOnceAsync(
         MultiAuthorizationSubscription subscription,
         CancellationToken cancellationToken = default);

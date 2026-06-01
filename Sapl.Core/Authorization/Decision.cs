@@ -16,4 +16,7 @@ public enum Decision
 
     [JsonStringEnumMemberName("NOT_APPLICABLE")]
     NotApplicable,
+
+    [JsonStringEnumMemberName("SUSPEND")]
+    Suspend,
 }
