@@ -6,9 +6,9 @@ namespace Sapl.Rsocket;
 
 /// <summary>
 /// Bidirectional converter between the protobuf Value oneof and System.Text.Json
-/// JsonElement, mirroring the Java and TypeScript codecs so the wire is shared.
-/// SAPL undefined (a missing subscription field or an expression with no value)
-/// maps to the undefined_value sentinel, distinct from JSON null.
+/// JsonElement. SAPL undefined (a missing subscription field or an expression with no
+/// value) maps to the undefined_value sentinel, distinct from JSON null. Numbers ride as
+/// strings to preserve decimal precision.
 /// </summary>
 internal sealed class SaplValueCodec
 {

@@ -96,9 +96,15 @@ internal static class ContentFilter
 
             var jToken = ToJToken(original);
 
-            foreach (var action in actions.EnumerateArray())
+            // A list payload maps the actions over each element, so a path like $.ssn
+            // applies to every item rather than the array root.
+            IEnumerable<JToken> targets = jToken is JArray array ? array.Children().ToList() : [jToken];
+            foreach (var target in targets)
             {
-                ApplyAction(jToken, action);
+                foreach (var action in actions.EnumerateArray())
+                {
+                    ApplyAction(target, action);
+                }
             }
 
             try

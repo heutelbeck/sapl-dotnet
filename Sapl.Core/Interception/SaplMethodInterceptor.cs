@@ -1,228 +1,109 @@
-using System.Text.Json;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Logging;
 using Sapl.Core.Attributes;
 using Sapl.Core.Authorization;
-using Sapl.Core.Constraints;
-using Sapl.Core.Constraints.Api;
-using Sapl.Core.Enforcement;
+using Sapl.Core.Pep.Enforcement;
 using Sapl.Core.Subscription;
 
 namespace Sapl.Core.Interception;
 
-public sealed class SaplMethodInterceptor
+/// <summary>
+/// Applies SAPL enforcement at the domain layer. The proxy invokes one of these methods per
+/// intercepted service call, building a subscription from the method context (and an optional
+/// customizer) and routing through the enforcement engine, so policies can enforce on service
+/// methods, not only at the HTTP boundary.
+/// </summary>
+public sealed class SaplMethodInterceptor(EnforcementEngine engine, IServiceProvider serviceProvider)
 {
-    private readonly EnforcementEngine _engine;
-    private readonly ILogger<SaplMethodInterceptor> _logger;
-    private readonly IServiceProvider _serviceProvider;
-
-    public SaplMethodInterceptor(
-        EnforcementEngine engine,
-        ILogger<SaplMethodInterceptor> logger,
-        IServiceProvider serviceProvider)
-    {
-        _engine = engine;
-        _logger = logger;
-        _serviceProvider = serviceProvider;
-    }
-
     public async Task<object?> PreEnforceAsync(
         PreEnforceAttribute attribute,
         SubscriptionContext context,
-        Func<object?[], Task<object?>> proceed,
+        Type returnType,
+        IReadOnlyList<string> parameterNames,
         object?[] args,
-        CancellationToken ct = default)
+        Func<object?[], Task<object?>> proceed,
+        CancellationToken cancellationToken = default)
     {
-        var builder = SubscriptionBuilder.FromAttribute(attribute);
-        ApplyCustomizer(attribute.Customizer, context, builder);
-        var subscription = builder.Build(context);
+        var subscription = Build(SubscriptionBuilder.FromAttribute(attribute), attribute.Customizer, context);
+        var enforcement = await engine.PreDecideAsync(subscription, returnType, cancellationToken).ConfigureAwait(false);
 
-        var result = await _engine.PreEnforceAsync(subscription, ct).ConfigureAwait(false);
-
-        if (!result.IsPermitted)
-        {
-            _logger.LogDebug("PreEnforce denied access to {Method}.", context.MethodName);
-            throw new AccessDeniedException("Access denied by policy.");
-        }
-
-        if (result.Bundle is not null)
-        {
-            if (result.Bundle.HasResourceReplacement)
-            {
-                _logger.LogDebug("PreEnforce: returning PDP-provided resource replacement.");
-                return result.Bundle.ResourceReplacement!.Value;
-            }
-
-            var miContext = new MethodInvocationContext(
-                args,
-                context.MethodName ?? "unknown",
-                context.ClassName,
-                context.Properties.TryGetValue("request", out var request) ? request : null);
-            result.Bundle.HandleMethodInvocationHandlers(miContext);
-
-            for (var i = 0; i < miContext.Args.Length && i < args.Length; i++)
-            {
-                args[i] = miContext.Args[i];
-            }
-        }
+        ApplyInput(enforcement, context, parameterNames, args);
 
         object? returnValue;
         try
         {
             returnValue = await proceed(args).ConfigureAwait(false);
         }
-        catch (Exception ex) when (result.Bundle is not null)
+        catch (Exception exception)
         {
-            var transformed = result.Bundle.HandleAllOnErrorConstraints(ex);
-            throw new InvalidOperationException(transformed.Message, transformed);
+            throw enforcement.EnforceError(exception);
         }
 
-        if (returnValue is not null && result.Bundle is not null)
-        {
-            try
-            {
-                returnValue = result.Bundle.HandleAllOnNextConstraints(returnValue);
-                result.Bundle.CheckFailedObligations();
-            }
-            catch (AccessDeniedException)
-            {
-                _logger.LogDebug("PreEnforce denied due to post-execution constraint handling.");
-                throw;
-            }
-        }
-
-        return returnValue;
+        return returnValue is null ? null : enforcement.EnforceOutput(returnValue);
     }
 
     public async Task<object?> PostEnforceAsync(
         PostEnforceAttribute attribute,
         SubscriptionContext context,
+        Type returnType,
         Func<Task<object?>> proceed,
-        CancellationToken ct = default)
+        CancellationToken cancellationToken = default)
     {
         var returnValue = await proceed().ConfigureAwait(false);
+        var withResult = WithReturnValue(context, returnValue);
+        var subscription = Build(SubscriptionBuilder.FromAttribute(attribute), attribute.Customizer, withResult);
+        return await engine.PostEnforceAsync(subscription, returnValue, returnType, cancellationToken).ConfigureAwait(false);
+    }
 
-        var contextWithReturnValue = new SubscriptionContext
+    public IAsyncEnumerable<T> EnforceStream<T>(
+        StreamEnforceAttribute attribute,
+        SubscriptionContext context,
+        Func<IAsyncEnumerable<T>> sourceFactory,
+        CancellationToken cancellationToken = default)
+    {
+        var subscription = Build(SubscriptionBuilder.FromAttribute(attribute), attribute.Customizer, context);
+        return engine.EnforceStreamAsync(subscription, sourceFactory(), cancellationToken);
+    }
+
+    private AuthorizationSubscription Build(SubscriptionBuilder builder, Type? customizerType, SubscriptionContext context)
+    {
+        if (customizerType is not null)
         {
-            Principal = context.Principal,
-            MethodName = context.MethodName,
-            ClassName = context.ClassName,
-            MethodArguments = context.MethodArguments,
-            ReturnValue = returnValue,
-            BearerToken = context.BearerToken,
-            Properties = context.Properties,
-        };
-
-        var builder = SubscriptionBuilder.FromAttribute(attribute);
-        ApplyCustomizer(attribute.Customizer, contextWithReturnValue, builder);
-        var subscription = builder.Build(contextWithReturnValue);
-
-        var element = returnValue is not null
-            ? JsonSerializer.SerializeToElement(returnValue, SerializerDefaults.Options)
-            : JsonDocument.Parse("null").RootElement;
-
-        var result = await _engine.PostEnforceAsync(subscription, element, ct).ConfigureAwait(false);
-
-        if (!result.IsPermitted)
-        {
-            _logger.LogDebug("PostEnforce denied access to {Method}.", context.MethodName);
-            throw new AccessDeniedException("Access denied by policy.");
+            var customizer = (ISubscriptionCustomizer)ActivatorUtilities.GetServiceOrCreateInstance(serviceProvider, customizerType);
+            customizer.Customize(context, builder);
         }
 
-        return result.Value;
+        return builder.Build(context);
     }
 
-    public IAsyncEnumerable<T> EnforceTillDenied<T>(
-        EnforceTillDeniedAttribute attribute,
+    private static void ApplyInput(
+        EnforcementContext enforcement,
         SubscriptionContext context,
-        Func<IAsyncEnumerable<T>> sourceFactory,
-        CancellationToken ct = default)
+        IReadOnlyList<string> parameterNames,
+        object?[] args)
     {
-        var builder = SubscriptionBuilder.FromAttribute(attribute);
-        ApplyCustomizer(attribute.Customizer, context, builder);
-        var subscription = builder.Build(context);
-        return _engine.EnforceTillDenied(subscription, sourceFactory, cancellationToken: ct);
-    }
-
-    public IAsyncEnumerable<T> EnforceDropWhileDenied<T>(
-        EnforceDropWhileDeniedAttribute attribute,
-        SubscriptionContext context,
-        Func<IAsyncEnumerable<T>> sourceFactory,
-        CancellationToken ct = default)
-    {
-        var builder = SubscriptionBuilder.FromAttribute(attribute);
-        ApplyCustomizer(attribute.Customizer, context, builder);
-        var subscription = builder.Build(context);
-        return _engine.EnforceDropWhileDenied(subscription, sourceFactory, cancellationToken: ct);
-    }
-
-    public IAsyncEnumerable<T> EnforceRecoverableIfDenied<T>(
-        EnforceRecoverableIfDeniedAttribute attribute,
-        SubscriptionContext context,
-        Func<IAsyncEnumerable<T>> sourceFactory,
-        CancellationToken ct = default)
-    {
-        var builder = SubscriptionBuilder.FromAttribute(attribute);
-        ApplyCustomizer(attribute.Customizer, context, builder);
-        var subscription = builder.Build(context);
-
-        if (typeof(T) != typeof(object))
+        if (context.MethodArguments is null)
         {
-            return _engine.EnforceRecoverableIfDenied(subscription, sourceFactory, cancellationToken: ct);
-        }
-
-        return (IAsyncEnumerable<T>)EnforceRecoverableWithSignals(
-            subscription, (Func<IAsyncEnumerable<object>>)(object)sourceFactory, ct);
-    }
-
-    private void ApplyCustomizer(Type? customizerType, SubscriptionContext context, SubscriptionBuilder builder)
-    {
-        if (customizerType is null)
             return;
+        }
 
-        if (!typeof(ISubscriptionCustomizer).IsAssignableFrom(customizerType))
-            throw new InvalidOperationException(
-                $"Customizer type {customizerType.Name} does not implement ISubscriptionCustomizer.");
-
-        var customizer = (ISubscriptionCustomizer)ActivatorUtilities.GetServiceOrCreateInstance(
-            _serviceProvider, customizerType);
-        customizer.Customize(context, builder);
-    }
-
-    private async IAsyncEnumerable<object> EnforceRecoverableWithSignals(
-        Authorization.AuthorizationSubscription subscription,
-        Func<IAsyncEnumerable<object>> sourceFactory,
-        [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken ct)
-    {
-        var output = System.Threading.Channels.Channel.CreateUnbounded<object>();
-
-        var stream = _engine.EnforceRecoverableIfDenied(
-            subscription, sourceFactory,
-            onDeny: _ => output.Writer.TryWrite(AccessSignal.Denied()),
-            onRecover: _ => output.Writer.TryWrite(AccessSignal.Recovered()),
-            cancellationToken: ct);
-
-        _ = Task.Run(async () =>
+        var transformed = enforcement.EnforceInput(context.MethodArguments);
+        for (var i = 0; i < parameterNames.Count && i < args.Length; i++)
         {
-            try
+            if (transformed.TryGetValue(parameterNames[i], out var value))
             {
-                await foreach (var item in stream.WithCancellation(ct).ConfigureAwait(false))
-                {
-                    await output.Writer.WriteAsync(item, ct).ConfigureAwait(false);
-                }
+                args[i] = value;
             }
-            catch (OperationCanceledException)
-            {
-            }
-            finally
-            {
-                output.Writer.TryComplete();
-            }
-        }, ct);
-
-        await foreach (var item in output.Reader.ReadAllAsync(ct).ConfigureAwait(false))
-        {
-            yield return item;
         }
     }
+
+    private static SubscriptionContext WithReturnValue(SubscriptionContext context, object? returnValue) => new()
+    {
+        Principal = context.Principal,
+        MethodName = context.MethodName,
+        ClassName = context.ClassName,
+        MethodArguments = context.MethodArguments,
+        ReturnValue = returnValue,
+        BearerToken = context.BearerToken,
+        Properties = context.Properties,
+    };
 }

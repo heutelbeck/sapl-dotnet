@@ -157,21 +157,7 @@ public sealed class SubscriptionBuilder
         return builder;
     }
 
-    public static SubscriptionBuilder FromAttribute(EnforceTillDeniedAttribute attr)
-    {
-        var builder = new SubscriptionBuilder();
-        ApplyStaticValues(builder, attr.Subject, attr.Action, attr.Resource, attr.Environment, attr.Secrets);
-        return builder;
-    }
-
-    public static SubscriptionBuilder FromAttribute(EnforceDropWhileDeniedAttribute attr)
-    {
-        var builder = new SubscriptionBuilder();
-        ApplyStaticValues(builder, attr.Subject, attr.Action, attr.Resource, attr.Environment, attr.Secrets);
-        return builder;
-    }
-
-    public static SubscriptionBuilder FromAttribute(EnforceRecoverableIfDeniedAttribute attr)
+    public static SubscriptionBuilder FromAttribute(StreamEnforceAttribute attr)
     {
         var builder = new SubscriptionBuilder();
         ApplyStaticValues(builder, attr.Subject, attr.Action, attr.Resource, attr.Environment, attr.Secrets);

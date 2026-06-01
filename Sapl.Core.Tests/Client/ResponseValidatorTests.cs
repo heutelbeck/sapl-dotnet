@@ -16,6 +16,7 @@ public class ResponseValidatorTests
     [InlineData("{\"decision\":\"DENY\"}", Decision.Deny)]
     [InlineData("{\"decision\":\"INDETERMINATE\"}", Decision.Indeterminate)]
     [InlineData("{\"decision\":\"NOT_APPLICABLE\"}", Decision.NotApplicable)]
+    [InlineData("{\"decision\":\"SUSPEND\"}", Decision.Suspend)]
     void WhenValidDecisionThenParsesCorrectly(string json, Decision expected)
     {
         var result = ResponseValidator.ParseDecisionFromJson(json, _logger);

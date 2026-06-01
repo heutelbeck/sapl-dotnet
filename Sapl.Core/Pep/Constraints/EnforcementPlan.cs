@@ -4,7 +4,7 @@ namespace Sapl.Core.Pep.Constraints;
 
 /// <summary>
 /// The enforcement plan P(d) for an authorization decision. Maps each signal to the
-/// ordered handler entries discharged when that signal fires (Algorithm 3).
+/// ordered handler entries discharged when that signal fires.
 /// </summary>
 public sealed record EnforcementPlan(IReadOnlyDictionary<SignalType, IReadOnlyList<EnforcementPlanEntry>> Entries)
 {

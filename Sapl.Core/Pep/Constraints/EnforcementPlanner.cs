@@ -5,13 +5,13 @@ using Sapl.Core.Constraints;
 namespace Sapl.Core.Pep.Constraints;
 
 /// <summary>
-/// Builds the enforcement plan P(d) for an authorization decision (Algorithm 2).
-/// Phase 1 resolves a handler for each obligation and advice via the registered
-/// providers, substituting a failure runner when resolution is unresolved, ambiguous,
-/// or inadmissible. Phase 2 sorts each per-signal sequence and replaces any same-priority
-/// mapper group of length greater than one with failure runners, since mapper composition
-/// commutativity cannot be proven. A non-undefined decision resource adds an implicit
-/// obligation mapper at the output signal that substitutes the resource for the output.
+/// Builds the enforcement plan P(d) for an authorization decision. First it resolves a
+/// handler for each obligation and advice via the registered providers, substituting a
+/// failure runner when resolution is unresolved, ambiguous, or inadmissible. Then it sorts
+/// each per-signal sequence and replaces any same-priority mapper group of length greater
+/// than one with failure runners, since mapper composition commutativity cannot be proven.
+/// A non-undefined decision resource adds an implicit obligation mapper at the output signal
+/// that substitutes the resource for the output.
 /// </summary>
 public sealed class EnforcementPlanner
 {

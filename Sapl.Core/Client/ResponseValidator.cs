@@ -44,6 +44,7 @@ internal static class ResponseValidator
             "DENY" => Decision.Deny,
             "INDETERMINATE" => Decision.Indeterminate,
             "NOT_APPLICABLE" => Decision.NotApplicable,
+            "SUSPEND" => Decision.Suspend,
             _ => Decision.Indeterminate,
         };
 

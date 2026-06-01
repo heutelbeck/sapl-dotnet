@@ -12,6 +12,7 @@
 |---------|-------------|
 | **Sapl.Core** | Framework-agnostic core: PDP client, authorization models, constraint handling, enforcement engine |
 | **Sapl.AspNetCore** | ASP.NET Core integration: filters, attributes, middleware, subscription builder |
+| **Sapl.Rsocket** | RSocket transport for the PDP client, as an alternative to HTTP |
 
 ## Quick Start
 
