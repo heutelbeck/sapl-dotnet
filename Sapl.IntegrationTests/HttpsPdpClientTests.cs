@@ -17,7 +17,7 @@ public sealed class HttpsPdpClientTests : IAsyncLifetime
     public async Task DecideOnceOverHttpsWithCustomCaReturnsPermit()
     {
         var client = PdpClients.Create(
-            new PdpClientOptions { BaseUrl = _node.HttpUrl, StreamingMaxRetries = 1 },
+            new PdpClientOptions { BaseUrl = _node.HttpUrl },
             Tls.TrustingHandler(_node.CaPemPath!));
 
         var decision = await client.DecideOnceAsync(ItFixtures.PermitSubscription);
@@ -29,7 +29,7 @@ public sealed class HttpsPdpClientTests : IAsyncLifetime
     public async Task DecideStreamsOverHttpsWithCustomCa()
     {
         var client = PdpClients.Create(
-            new PdpClientOptions { BaseUrl = _node.HttpUrl, StreamingMaxRetries = 1 },
+            new PdpClientOptions { BaseUrl = _node.HttpUrl },
             Tls.TrustingHandler(_node.CaPemPath!));
         using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(15));
 

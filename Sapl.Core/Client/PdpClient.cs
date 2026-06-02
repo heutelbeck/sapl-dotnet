@@ -270,12 +270,6 @@ public sealed class PdpClient : IPolicyDecisionPoint
                 yield break;
 
             attempt++;
-            if (_options.StreamingMaxRetries > 0 && attempt >= _options.StreamingMaxRetries)
-            {
-                _logger.LogError("PDP streaming max retries ({MaxRetries}) reached.", _options.StreamingMaxRetries);
-                yield break;
-            }
-
             var delayMs = CalculateBackoffDelay(attempt);
 
             if (attempt >= RetryEscalationThreshold)

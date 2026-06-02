@@ -238,9 +238,8 @@ public class PdpClientTests : IDisposable
         {
             BaseUrl = baseUrl,
             TimeoutMs = timeoutMs,
-            StreamingMaxRetries = 1,
-            StreamingRetryBaseDelayMs = 10,
-            StreamingRetryMaxDelayMs = 50,
+            StreamingRetryBaseDelayMs = 5000,
+            StreamingRetryMaxDelayMs = 30000,
         };
         return new PdpClient(_factory, options, _logger);
     }

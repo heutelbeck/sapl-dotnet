@@ -121,6 +121,5 @@ public class PdpClientOptionsTests
         options.TimeoutMs.Should().Be(5000);
         options.StreamingRetryBaseDelayMs.Should().Be(1000);
         options.StreamingRetryMaxDelayMs.Should().Be(30000);
-        options.StreamingMaxRetries.Should().Be(0);
     }
 }

@@ -229,7 +229,7 @@ public sealed class RsocketPdpClient : IPolicyDecisionPoint, IAsyncDisposable
         return (int)Math.Round(baseDelay * (0.5 + jitter));
     }
 
-    private sealed class PayloadObserver<T>(
+    internal sealed class PayloadObserver<T>(
         ChannelWriter<T> writer,
         Func<byte[], T> decode) : IObserver<(ReadOnlySequence<byte> Metadata, ReadOnlySequence<byte> Data)>
     {

@@ -16,7 +16,6 @@ public sealed class HttpPdpClientNoAuthTests : IAsyncLifetime
     private PdpClient Client() => PdpClients.Create(new PdpClientOptions
     {
         BaseUrl = _node.HttpUrl,
-        StreamingMaxRetries = 1,
     });
 
     [Fact]

@@ -24,8 +24,6 @@ public sealed record PdpClientOptions
 
     public int TimeoutMs { get; set; } = DefaultTimeoutMs;
 
-    public int StreamingMaxRetries { get; set; }
-
     public int StreamingRetryBaseDelayMs { get; set; } = DefaultRetryBaseDelayMs;
 
     public int StreamingRetryMaxDelayMs { get; set; } = DefaultRetryMaxDelayMs;
