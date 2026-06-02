@@ -41,6 +41,12 @@ public sealed record RsocketPdpClientOptions
 
     public RsocketTlsOptions? Tls { get; init; }
 
+    /// <summary>Base delay (ms) for the streaming reconnect backoff.</summary>
+    public int StreamingRetryBaseDelayMs { get; init; } = 1000;
+
+    /// <summary>Maximum delay (ms) the streaming reconnect backoff caps at.</summary>
+    public int StreamingRetryMaxDelayMs { get; init; } = 30000;
+
     public void Validate()
     {
         if (string.IsNullOrWhiteSpace(Host))

@@ -35,6 +35,10 @@ public sealed class RsocketPdpClient : IPolicyDecisionPoint, IAsyncDisposable
 
     private static readonly TimeSpan RequestTimeout = TimeSpan.FromSeconds(10);
 
+    private const int RetryEscalationThreshold = 5;
+    private const string ErrorStreamDisconnected =
+        "RSocket streaming connection lost, reconnecting in {DelayMs}ms (attempt {Attempt}).";
+
     private readonly RsocketPdpClientOptions _options;
     private readonly SaplProtoCodec _codec = new();
     private readonly SemaphoreSlim _connectLock = new(1, 1);
@@ -135,44 +139,99 @@ public sealed class RsocketPdpClient : IPolicyDecisionPoint, IAsyncDisposable
         Func<IEnumerable<T>> failClosed,
         [EnumeratorCancellation] CancellationToken cancellationToken)
     {
-        RSocketClient? client = null;
-        try
-        {
-            client = await ConnectAsync().WaitAsync(cancellationToken).ConfigureAwait(false);
-        }
-        catch (Exception ex)
-        {
-            _logger.LogWarning(ex, "RSocket {Route} stream connect failed, failing closed.", route);
-        }
+        // Subscriptions never terminate: a transport error or a server-side stream
+        // completion both emit INDETERMINATE and reconnect with bounded exponential
+        // backoff, forever. The stream ends only when the consumer cancels. One
+        // INDETERMINATE is emitted per outage (consecutive duplicates suppressed).
+        var attempt = 0;
+        var hasLast = false;
+        T? last = default;
 
-        if (client is null)
+        while (!cancellationToken.IsCancellationRequested)
         {
-            InvalidateConnection();
-            foreach (var value in failClosed())
+            RSocketClient? client = null;
+            try
             {
-                yield return value;
+                client = await ConnectAsync().WaitAsync(cancellationToken).ConfigureAwait(false);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "RSocket {Route} stream connect failed, reconnecting.", route);
+                InvalidateConnection();
             }
 
-            yield break;
-        }
+            if (client is not null)
+            {
+                // RSocket.Core only offers the IObserver push API for streams, so bridge
+                // it to a channel. The observer completes the channel on error or on
+                // server completion; this loop then emits INDETERMINATE and reconnects.
+                var channel = Channel.CreateUnbounded<T>(new UnboundedChannelOptions { SingleReader = true });
+                var observer = new PayloadObserver<T>(channel.Writer, decode);
+                _ = client.RequestStream(observer, Sequence(data), Sequence(route), int.MaxValue);
 
-        // RSocket.Core only offers the IObserver push API for streams, so bridge it
-        // to a channel. The observer faults closed on a stream or decode error.
-        var channel = Channel.CreateUnbounded<T>(new UnboundedChannelOptions { SingleReader = true });
-        var observer = new PayloadObserver<T>(channel.Writer, decode, failClosed, InvalidateConnection);
-        _ = client.RequestStream(observer, Sequence(data), Sequence(route), int.MaxValue);
+                await foreach (var item in channel.Reader.ReadAllAsync(cancellationToken).ConfigureAwait(false))
+                {
+                    attempt = 0;
+                    if (!hasLast || !EqualityComparer<T>.Default.Equals(item, last))
+                    {
+                        last = item;
+                        hasLast = true;
+                        yield return item;
+                    }
+                }
 
-        await foreach (var item in channel.Reader.ReadAllAsync(cancellationToken).ConfigureAwait(false))
-        {
-            yield return item;
+                InvalidateConnection();
+            }
+
+            if (cancellationToken.IsCancellationRequested)
+            {
+                yield break;
+            }
+
+            attempt++;
+            var delayMs = CalculateBackoffDelay(attempt);
+            if (attempt >= RetryEscalationThreshold)
+            {
+                _logger.LogError(ErrorStreamDisconnected, delayMs, attempt);
+            }
+            else
+            {
+                _logger.LogWarning(ErrorStreamDisconnected, delayMs, attempt);
+            }
+
+            foreach (var value in failClosed())
+            {
+                if (!hasLast || !EqualityComparer<T>.Default.Equals(value, last))
+                {
+                    last = value;
+                    hasLast = true;
+                    yield return value;
+                }
+            }
+
+            try
+            {
+                await Task.Delay(delayMs, cancellationToken).ConfigureAwait(false);
+            }
+            catch (OperationCanceledException)
+            {
+                yield break;
+            }
         }
+    }
+
+    private int CalculateBackoffDelay(int attempt)
+    {
+        var baseDelay = Math.Min(
+            _options.StreamingRetryBaseDelayMs * Math.Pow(2, attempt - 1),
+            _options.StreamingRetryMaxDelayMs);
+        var jitter = Random.Shared.NextDouble() * 0.5;
+        return (int)Math.Round(baseDelay * (0.5 + jitter));
     }
 
     private sealed class PayloadObserver<T>(
         ChannelWriter<T> writer,
-        Func<byte[], T> decode,
-        Func<IEnumerable<T>> failClosed,
-        Action onFault) : IObserver<(ReadOnlySequence<byte> Metadata, ReadOnlySequence<byte> Data)>
+        Func<byte[], T> decode) : IObserver<(ReadOnlySequence<byte> Metadata, ReadOnlySequence<byte> Data)>
     {
         public void OnNext((ReadOnlySequence<byte> Metadata, ReadOnlySequence<byte> Data) value)
         {
@@ -182,24 +241,13 @@ public sealed class RsocketPdpClient : IPolicyDecisionPoint, IAsyncDisposable
             }
             catch (Exception)
             {
-                Fault();
+                writer.TryComplete();
             }
         }
 
-        public void OnError(Exception error) => Fault();
+        public void OnError(Exception error) => writer.TryComplete();
 
         public void OnCompleted() => writer.TryComplete();
-
-        private void Fault()
-        {
-            onFault();
-            foreach (var fallback in failClosed())
-            {
-                writer.TryWrite(fallback);
-            }
-
-            writer.TryComplete();
-        }
     }
 
     private async Task<RSocketClient> ConnectAsync()
