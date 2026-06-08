@@ -1,0 +1,57 @@
+name: Integration tests (SAPL Node)
+
+# The Sapl.IntegrationTests suite drives the PDP client against a real SAPL
+# Node started via Testcontainers. It needs the sapl-node image locally; until
+# the 4.1 image is published to ghcr.io, build it from the engine's 4.1.0
+# branch with the same commands the engine CI uses. The build tags the image
+# ghcr.io/heutelbeck/sapl-node:4.1.0-SNAPSHOT -- the exact name the tests
+# resolve -- so Testcontainers uses the local image without a registry pull.
+# Once that tag is public, replace the engine checkout and the two build steps
+# with a single `docker pull`.
+
+on:
+  push:
+    branches: [main]
+    paths-ignore:
+      - '**.gitignore'
+      - '**.md'
+  workflow_dispatch:
+
+concurrency:
+  group: integration-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  sapl-node-integration:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out sapl-dotnet
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+
+      - name: Check out SAPL engine (4.1.0 branch)
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        with:
+          repository: heutelbeck/sapl-policy-engine
+          ref: 4.1.0
+          path: sapl-policy-engine
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@dded0888837ed1f317902acf8a20df0ad188d165 # v5.0.0
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: maven
+
+      - name: Build SAPL Node image (ghcr.io/heutelbeck/sapl-node:4.1.0-SNAPSHOT)
+        working-directory: sapl-policy-engine
+        run: |
+          mvn -U -B install -pl sapl-node -am -Dmaven.test.skip=true
+          mvn -B spring-boot:build-image -pl sapl-node -Dmaven.test.skip=true
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@9a946fdbd5fb07b82b2f5a4466058b876ab72bb2 # v5.3.0
+        with:
+          dotnet-version: 9.0.x
+
+      - name: Run integration tests
+        run: dotnet test Sapl.IntegrationTests/Sapl.IntegrationTests.csproj --verbosity normal
