@@ -2,9 +2,10 @@
 
 ## 4.1.0
 
-Aligns the .NET PEP with the SAPL 4.1 enforcement model: a planner-driven
-constraint architecture and `[StreamEnforce]`-driven streaming, plus support
-for the new `SUSPEND` decision verb and the RSocket transport.
+Brings the .NET PEP to the SAPL 4.1 enforcement model. Constraint handling
+now uses a planner that binds handlers to lifecycle signals, and streaming
+runs through `[StreamEnforce]`. Adds the `SUSPEND` decision verb and the
+RSocket transport.
 
 ### Added
 
