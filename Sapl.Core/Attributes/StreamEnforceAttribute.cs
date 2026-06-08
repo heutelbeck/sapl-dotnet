@@ -24,7 +24,7 @@ public sealed class StreamEnforceAttribute : Attribute
 
     /// <summary>
     /// When true, each suspend/resume boundary crossing surfaces an out-of-band transition
-    /// frame to the subscriber (ACCESS_SUSPENDED / ACCESS_RESTORED). When false (default)
+    /// frame to the subscriber (ACCESS_SUSPENDED / ACCESS_GRANTED). When false (default)
     /// transitions are silent and items simply drop while suspended. Honoured by the SSE
     /// controller filter; the domain proxy path ignores it.
     /// </summary>

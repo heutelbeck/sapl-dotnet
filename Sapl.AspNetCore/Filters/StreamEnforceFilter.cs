@@ -75,7 +75,7 @@ public sealed class StreamEnforceFilter(EnforcementEngine engine, SaplSubscripti
             yield return item switch
             {
                 TransitionReason.Suspended => new StreamSignalFrame("ACCESS_SUSPENDED", "Stream paused by policy"),
-                TransitionReason.Granted => new StreamSignalFrame("ACCESS_RESTORED", "Stream resumed by policy"),
+                TransitionReason.Granted => new StreamSignalFrame("ACCESS_GRANTED", "Access granted by policy"),
                 AccessDeniedException => new StreamSignalFrame("ACCESS_DENIED", "Stream terminated by policy"),
                 _ => item,
             };
