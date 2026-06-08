@@ -6,6 +6,8 @@
 
 .NET implementation of [SAPL](https://sapl.io) (Streaming Attribute-Based Access Control).
 
+Built on the SAPL 4.1 enforcement model: a planner-driven constraint architecture that binds handlers to lifecycle signals, streaming enforcement via `[StreamEnforce]` with support for the new `SUSPEND` decision verb, and an optional RSocket transport. See the [CHANGELOG](CHANGELOG.md) for the 4.1.0 release notes.
+
 ## Packages
 
 | Package | Description |
@@ -29,6 +31,7 @@ See [heutelbeck/sapl-dotnet-demos](https://github.com/heutelbeck/sapl-dotnet-dem
 
 - [Full Documentation](https://sapl.io/docs/latest/)
 - [.NET Integration](https://sapl.io/docs/latest/6_10_DotNet/)
+- [Changelog](CHANGELOG.md)
 - [Demo Application](https://github.com/heutelbeck/sapl-dotnet-demos)
 - [Report an Issue](https://github.com/heutelbeck/sapl-dotnet/issues)
 
