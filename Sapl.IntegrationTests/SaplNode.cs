@@ -18,6 +18,8 @@ public static class SaplNode
 
     private const string PermitAllPolicy = "policy \"permit-all\"\npermit";
 
+    private const string ReadinessProbeBody = """{"subject":"_","action":"_","resource":"_"}""";
+
     private const string PdpConfigJson =
         """{"algorithm":{"votingMode":"PRIORITY_PERMIT","defaultDecision":"DENY","errorHandling":"ABSTAIN"},"variables":{}}""";
 
@@ -54,6 +56,9 @@ public static class SaplNode
         var scheme = options.Tls ? "https" : "http";
         var httpUrl = $"{scheme}://{host}:{container.GetMappedPublicPort(httpPort)}";
         var caPem = options.Tls ? Path.Combine(TlsFixtureDir, "ca.pem") : null;
+
+        await WaitUntilDecisionReadyAsync(httpUrl, caPem, TimeSpan.FromSeconds(30));
+
         return new StartedSaplNode(container, httpUrl, host, container.GetMappedPublicPort(RsocketPort), caPem);
     }
 
@@ -115,4 +120,38 @@ public static class SaplNode
     }
 
     private static string Bool(bool value) => value ? "true" : "false";
+
+    /// <summary>
+    /// Waits until the node answers an HTTP decision request, mirroring the readiness
+    /// probe the other PEP integration suites use. The "SAPL Node ready" log marks process
+    /// startup, not decision-readiness; without this a cold PDP can make the first
+    /// multi-decision snapshot time out, since xUnit runs the facts in arbitrary order.
+    /// </summary>
+    private static async Task WaitUntilDecisionReadyAsync(string httpUrl, string? caPemPath, TimeSpan timeout)
+    {
+        using var client = caPemPath is null
+            ? new HttpClient()
+            : new HttpClient(Tls.TrustingHandler(caPemPath), disposeHandler: true);
+        client.Timeout = TimeSpan.FromSeconds(2);
+
+        var url = $"{httpUrl}/api/pdp/decide-once";
+        var deadline = DateTime.UtcNow + timeout;
+        while (DateTime.UtcNow < deadline)
+        {
+            try
+            {
+                using var content = new StringContent(ReadinessProbeBody, Encoding.UTF8, "application/json");
+                using (await client.PostAsync(url, content))
+                {
+                    return;
+                }
+            }
+            catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException)
+            {
+                await Task.Delay(TimeSpan.FromMilliseconds(500));
+            }
+        }
+
+        throw new TimeoutException($"SAPL Node did not become decision-ready within {timeout.TotalSeconds:0}s.");
+    }
 }
