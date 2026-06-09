@@ -61,7 +61,19 @@ public sealed class SaplMethodInterceptor(EnforcementEngine engine, IServiceProv
         CancellationToken cancellationToken = default)
     {
         var subscription = Build(SubscriptionBuilder.FromAttribute(attribute), attribute.Customizer, context);
-        return engine.EnforceStreamAsync(subscription, sourceFactory(), cancellationToken);
+        return engine.EnforceStreamAsync(subscription, sourceFactory(), attribute.PauseRapDuringSuspend, cancellationToken);
+    }
+
+    public IAsyncEnumerable<object?> EnforceStreamObjects(
+        StreamEnforceAttribute attribute,
+        SubscriptionContext context,
+        Func<IAsyncEnumerable<object?>> sourceFactory,
+        CancellationToken cancellationToken = default)
+    {
+        var subscription = Build(SubscriptionBuilder.FromAttribute(attribute), attribute.Customizer, context);
+        return engine.EnforceStreamObjectsAsync(
+            subscription, sourceFactory(), typeof(object), attribute.SignalTransitions, attribute.PauseRapDuringSuspend,
+            cancellationToken);
     }
 
     private AuthorizationSubscription Build(SubscriptionBuilder builder, Type? customizerType, SubscriptionContext context)

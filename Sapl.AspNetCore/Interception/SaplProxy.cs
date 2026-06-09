@@ -119,8 +119,18 @@ public class SaplProxy<T> : DispatchProxy where T : class
         var returnType = targetMethod.ReturnType;
         if (returnType.IsGenericType && returnType.GetGenericTypeDefinition() == typeof(IAsyncEnumerable<>))
         {
-            return GenericInvoke(nameof(StreamingWrapper), returnType.GetGenericArguments()[0],
-                [targetMethod, args, context, attribute]);
+            var elementType = returnType.GetGenericArguments()[0];
+
+            // An object element type yields the raw enforced stream including the boundary and
+            // denial markers in-band; a typed element type cannot carry them, so it gets the
+            // typed path (data items only).
+            if (elementType == typeof(object))
+            {
+                return Interceptor.EnforceStreamObjects(
+                    attribute, context, () => (IAsyncEnumerable<object?>)targetMethod.Invoke(Target, args)!);
+            }
+
+            return GenericInvoke(nameof(StreamingWrapper), elementType, [targetMethod, args, context, attribute]);
         }
 
         throw new InvalidOperationException(

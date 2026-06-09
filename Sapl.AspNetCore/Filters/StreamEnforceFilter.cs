@@ -5,26 +5,23 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Controllers;
 using Microsoft.AspNetCore.Mvc.Filters;
 using Sapl.AspNetCore.Enforcement;
-using Sapl.AspNetCore.Streaming;
 using Sapl.Core.Attributes;
 using Sapl.Core.Authorization;
-using Sapl.Core.Constraints;
 using Sapl.Core.Pep.Enforcement;
-using Sapl.Core.Pep.Streaming;
 using Sapl.Core.Subscription;
 
 namespace Sapl.AspNetCore.Filters;
 
 /// <summary>
 /// Enforces a controller action carrying <see cref="StreamEnforceAttribute"/> that returns an
-/// <see cref="IAsyncEnumerable{T}"/>. The result stream is driven through the engine's Mealy
-/// machine and rendered as Server-Sent Events. A denial closes the stream; since SSE headers are
-/// sent before the first item, it cannot become a 403.
+/// <see cref="IAsyncEnumerable{T}"/>. The action's stream is driven through the engine's Mealy
+/// machine and the enforced object stream (data items plus boundary and denial markers) becomes
+/// the action result. Rendering that stream to a transport is the application's concern.
 /// </summary>
 public sealed class StreamEnforceFilter(EnforcementEngine engine, SaplSubscriptionResolver resolver) : IAsyncActionFilter
 {
-    private static readonly MethodInfo RenderMethod =
-        typeof(StreamEnforceFilter).GetMethod(nameof(RenderAsync), BindingFlags.NonPublic | BindingFlags.Instance)!;
+    private static readonly MethodInfo EnforceMethod =
+        typeof(StreamEnforceFilter).GetMethod(nameof(Enforce), BindingFlags.NonPublic | BindingFlags.Instance)!;
 
     public async Task OnActionExecutionAsync(ActionExecutingContext context, ActionExecutionDelegate next)
     {
@@ -43,20 +40,17 @@ public sealed class StreamEnforceFilter(EnforcementEngine engine, SaplSubscripti
 
         var subscription = resolver.Resolve(
             descriptor.MethodInfo, context.ActionArguments, SubscriptionBuilder.FromAttribute(attribute), attribute.Customizer);
-        var render = (Task)RenderMethod.MakeGenericMethod(elementType)
-            .Invoke(this, [context.HttpContext, subscription, value, attribute.SignalTransitions])!;
-        await render.ConfigureAwait(false);
-        executed.Result = new EmptyResult();
+        var enforced = (IAsyncEnumerable<object?>)EnforceMethod.MakeGenericMethod(elementType)
+            .Invoke(this, [context.HttpContext, subscription, value, attribute.SignalTransitions, attribute.PauseRapDuringSuspend])!;
+        executed.Result = new ObjectResult(enforced);
     }
 
-    private async Task RenderAsync<T>(
-        HttpContext http, AuthorizationSubscription subscription, IAsyncEnumerable<T> source, bool signalTransitions)
-    {
-        var enforced = engine.EnforceStreamObjectsAsync(
-            subscription, Box(source, http.RequestAborted), typeof(T), signalTransitions, http.RequestAborted);
-        await SseResultAdapter.WriteSseStreamAsync(http, MapFramesAsync(enforced, http.RequestAborted), http.RequestAborted)
-            .ConfigureAwait(false);
-    }
+    private IAsyncEnumerable<object?> Enforce<T>(
+        HttpContext http, AuthorizationSubscription subscription, IAsyncEnumerable<T> source, bool signalTransitions,
+        bool pauseRapDuringSuspend) =>
+        engine.EnforceStreamObjectsAsync(
+            subscription, Box(source, http.RequestAborted), typeof(T), signalTransitions, pauseRapDuringSuspend,
+            http.RequestAborted);
 
     private static async IAsyncEnumerable<object?> Box<T>(
         IAsyncEnumerable<T> source, [EnumeratorCancellation] CancellationToken cancellationToken)
@@ -64,21 +58,6 @@ public sealed class StreamEnforceFilter(EnforcementEngine engine, SaplSubscripti
         await foreach (var item in source.WithCancellation(cancellationToken).ConfigureAwait(false))
         {
             yield return item;
-        }
-    }
-
-    private static async IAsyncEnumerable<object?> MapFramesAsync(
-        IAsyncEnumerable<object?> source, [EnumeratorCancellation] CancellationToken cancellationToken)
-    {
-        await foreach (var item in source.WithCancellation(cancellationToken).ConfigureAwait(false))
-        {
-            yield return item switch
-            {
-                TransitionReason.Suspended => new StreamSignalFrame("ACCESS_SUSPENDED", "Stream paused by policy"),
-                TransitionReason.Granted => new StreamSignalFrame("ACCESS_GRANTED", "Access granted by policy"),
-                AccessDeniedException => new StreamSignalFrame("ACCESS_DENIED", "Stream terminated by policy"),
-                _ => item,
-            };
         }
     }
 

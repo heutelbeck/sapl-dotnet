@@ -101,7 +101,7 @@ public sealed class EnforcementEngineTests
         using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
 
         var items = new List<int>();
-        await foreach (var item in engine.EnforceStreamAsync(Subscription, DelayedItems(1, 2, 3), cts.Token))
+        await foreach (var item in engine.EnforceStreamAsync(Subscription, DelayedItems(1, 2, 3), cancellationToken: cts.Token))
         {
             items.Add(item);
         }
@@ -119,7 +119,7 @@ public sealed class EnforcementEngineTests
 
         var act = async () =>
         {
-            await foreach (var _ in engine.EnforceStreamAsync(Subscription, NeverEndingItems(), cts.Token))
+            await foreach (var _ in engine.EnforceStreamAsync(Subscription, NeverEndingItems(), cancellationToken: cts.Token))
             {
             }
         };

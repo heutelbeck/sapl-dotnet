@@ -94,9 +94,10 @@ public sealed class EnforcementEngine
     public async IAsyncEnumerable<T> EnforceStreamAsync<T>(
         AuthorizationSubscription subscription,
         IAsyncEnumerable<T> source,
+        bool pauseRapDuringSuspend = false,
         [EnumeratorCancellation] CancellationToken cancellationToken = default)
     {
-        await foreach (var emission in WalkAsync(subscription, typeof(T), source, cancellationToken).ConfigureAwait(false))
+        await foreach (var emission in WalkAsync(subscription, typeof(T), source, pauseRapDuringSuspend, cancellationToken).ConfigureAwait(false))
         {
             switch (emission)
             {
@@ -126,9 +127,10 @@ public sealed class EnforcementEngine
         IAsyncEnumerable<object?> source,
         Type elementType,
         bool signalTransitions,
+        bool pauseRapDuringSuspend = false,
         [EnumeratorCancellation] CancellationToken cancellationToken = default)
     {
-        await foreach (var emission in WalkAsync(subscription, elementType, source, cancellationToken).ConfigureAwait(false))
+        await foreach (var emission in WalkAsync(subscription, elementType, source, pauseRapDuringSuspend, cancellationToken).ConfigureAwait(false))
         {
             switch (emission)
             {
@@ -159,6 +161,7 @@ public sealed class EnforcementEngine
         AuthorizationSubscription subscription,
         Type elementType,
         IAsyncEnumerable<T> source,
+        bool pauseRapDuringSuspend,
         [EnumeratorCancellation] CancellationToken cancellationToken)
     {
         var supported = new HashSet<SignalType>
@@ -168,7 +171,10 @@ public sealed class EnforcementEngine
         var channel = Channel.CreateUnbounded<Incoming>(new UnboundedChannelOptions { SingleReader = true });
         using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
 
-        var pump = PumpAsync(subscription, supported, source, channel.Writer, linkedCts.Token);
+        // When pausing during suspend, the gate stops the item pump from pulling the source
+        // while the stream is suspended; it opens again on the next grant.
+        var itemsGate = new AsyncGate(open: true);
+        var pump = PumpAsync(subscription, supported, source, channel.Writer, itemsGate, linkedCts.Token);
 
         State state = State.Pending.Instance;
         try
@@ -181,6 +187,19 @@ public sealed class EnforcementEngine
 
                 var step = MealyMachine.Step(state, evt);
                 state = step.NewState;
+
+                if (pauseRapDuringSuspend)
+                {
+                    if (state is State.Suspended)
+                    {
+                        itemsGate.Close();
+                    }
+                    else if (state is State.Permitting)
+                    {
+                        itemsGate.Open();
+                    }
+                }
+
                 foreach (var emission in step.Emissions)
                 {
                     yield return emission;
@@ -204,10 +223,11 @@ public sealed class EnforcementEngine
         IReadOnlySet<SignalType> supported,
         IAsyncEnumerable<T> source,
         ChannelWriter<Incoming> writer,
+        AsyncGate itemsGate,
         CancellationToken cancellationToken)
     {
         var decisions = PumpDecisionsAsync(subscription, supported, writer, cancellationToken);
-        var items = PumpItemsAsync(source, writer, cancellationToken);
+        var items = PumpItemsAsync(source, writer, itemsGate, cancellationToken);
         await Task.WhenAll(decisions, items).ConfigureAwait(false);
         writer.TryComplete();
     }
@@ -238,13 +258,23 @@ public sealed class EnforcementEngine
     private static async Task PumpItemsAsync<T>(
         IAsyncEnumerable<T> source,
         ChannelWriter<Incoming> writer,
+        AsyncGate itemsGate,
         CancellationToken cancellationToken)
     {
         try
         {
-            await foreach (var item in source.WithCancellation(cancellationToken).ConfigureAwait(false))
+            // The gate is awaited before each pull, so a closed gate (suspended) leaves the
+            // source un-advanced rather than producing items that would be dropped.
+            await using var enumerator = source.GetAsyncEnumerator(cancellationToken);
+            while (true)
             {
-                writer.TryWrite(new Incoming.Item(item));
+                await itemsGate.WaitAsync(cancellationToken).ConfigureAwait(false);
+                if (!await enumerator.MoveNextAsync().ConfigureAwait(false))
+                {
+                    break;
+                }
+
+                writer.TryWrite(new Incoming.Item(enumerator.Current));
             }
 
             writer.TryWrite(new Incoming.MachineEvent(Event.RapComplete.Instance));
@@ -257,6 +287,36 @@ public sealed class EnforcementEngine
         {
             writer.TryWrite(new Incoming.MachineEvent(new Event.RapError(exception)));
         }
+    }
+
+    /// <summary>
+    /// An async gate: open lets waiters through immediately, closed makes them wait until the
+    /// next open. Used to pause the item pump while the stream is suspended.
+    /// </summary>
+    private sealed class AsyncGate
+    {
+        private volatile TaskCompletionSource _signal;
+
+        public AsyncGate(bool open)
+        {
+            _signal = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+            if (open)
+            {
+                _signal.TrySetResult();
+            }
+        }
+
+        public void Open() => _signal.TrySetResult();
+
+        public void Close()
+        {
+            if (_signal.Task.IsCompleted)
+            {
+                _signal = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+            }
+        }
+
+        public Task WaitAsync(CancellationToken cancellationToken) => _signal.Task.WaitAsync(cancellationToken);
     }
 
     private Event Classify(AuthorizationDecision decision, IReadOnlySet<SignalType> supported)

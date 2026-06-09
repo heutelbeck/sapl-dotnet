@@ -29,4 +29,12 @@ public sealed class StreamEnforceAttribute : Attribute
     /// controller filter; the domain proxy path ignores it.
     /// </summary>
     public bool SignalTransitions { get; set; }
+
+    /// <summary>
+    /// When true, the protected source is not pulled while the stream is suspended: it pauses
+    /// on entry to Suspended and resumes on the next grant, rather than running and having its
+    /// items dropped. When false (default) the source keeps producing and items drop silently
+    /// while suspended.
+    /// </summary>
+    public bool PauseRapDuringSuspend { get; set; }
 }
