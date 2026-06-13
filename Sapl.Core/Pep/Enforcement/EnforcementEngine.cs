@@ -322,15 +322,14 @@ public sealed class EnforcementEngine
     private Event Classify(AuthorizationDecision decision, IReadOnlySet<SignalType> supported)
     {
         var plan = _planner.Plan(decision, supported);
+        var failed = plan.Execute(new Signal.Decision(decision), false).FailureState;
         switch (decision.Decision)
         {
             case Decision.Permit:
-                var enforced = plan.Execute(new Signal.Decision(decision), false);
-                return enforced.FailureState
+                return failed
                     ? new Event.PdpDeny(decision, plan, DenyKind.PermitNotEnforceable)
                     : new Event.PdpPermit(decision, plan);
             case Decision.Suspend:
-                plan.Execute(new Signal.Decision(decision), false);
                 return new Event.PdpSuspend(decision, plan, new TransitionReason.Suspended(decision));
             case Decision.Deny:
                 return new Event.PdpDeny(decision, plan, DenyKind.PolicyDenied);
@@ -346,12 +345,13 @@ public sealed class EnforcementEngine
 
     private void GateOrThrow(AuthorizationDecision decision, EnforcementPlan plan)
     {
+        var failed = plan.Execute(new Signal.Decision(decision), false).FailureState;
         if (decision.Decision != Decision.Permit)
         {
             throw new AccessDeniedException(OneShotDenialMessage(decision.Decision));
         }
 
-        if (plan.Execute(new Signal.Decision(decision), false).FailureState)
+        if (failed)
         {
             throw new AccessDeniedException(DeniedDecisionEnforcementFailed);
         }

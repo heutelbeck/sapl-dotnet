@@ -66,6 +66,21 @@ public sealed class EnforcementEngineTests
     }
 
     [Fact]
+    async Task PreEnforceDenyStillRunsDecisionObligationThenDenies()
+    {
+        var ran = false;
+        var decision = new AuthorizationDecision
+        {
+            Decision = Decision.Deny,
+            Obligations = [Constraint(new { type = "audit" })],
+        };
+        var act = () => Engine(decision, new RunnerProvider("audit", () => ran = true)).PreEnforceAsync(Subscription);
+
+        await act.Should().ThrowAsync<AccessDeniedException>();
+        ran.Should().BeTrue();
+    }
+
+    [Fact]
     async Task PostEnforceTransformsOutputViaObligation()
     {
         var engine = Engine(Permit(new { type = "uppercase" }), new UppercaseProvider());
@@ -125,6 +140,31 @@ public sealed class EnforcementEngineTests
         };
 
         await act.Should().ThrowAsync<AccessDeniedException>();
+    }
+
+    [Fact]
+    async Task StreamDenyStillRunsDecisionObligation()
+    {
+        var ran = false;
+        var decision = new AuthorizationDecision
+        {
+            Decision = Decision.Deny,
+            Obligations = [Constraint(new { type = "audit" })],
+        };
+        var engine = new EnforcementEngine(
+            new StubPdp(decision, kept: true),
+            [new RunnerProvider("audit", () => ran = true)]);
+        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+
+        var act = async () =>
+        {
+            await foreach (var _ in engine.EnforceStreamAsync(Subscription, NeverEndingItems(), cancellationToken: cts.Token))
+            {
+            }
+        };
+
+        await act.Should().ThrowAsync<AccessDeniedException>();
+        ran.Should().BeTrue();
     }
 
     private static async IAsyncEnumerable<int> DelayedItems(params int[] values)

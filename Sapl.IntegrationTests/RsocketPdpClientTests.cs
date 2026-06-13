@@ -159,7 +159,7 @@ public sealed class RsocketPdpClientApiKeyAuthTests : IAsyncLifetime
     {
         AllowNoAuth = false,
         AllowApiKeyAuth = true,
-        Users = [new SaplNodeUser { Id = "it-apikey-client", ApiKey = ItFixtures.CredentialHash }],
+        Users = [new SaplNodeUser { Id = "it-apikey-client", ApiKeyId = ItFixtures.ApiKeyId, ApiKey = ItFixtures.CredentialHash }],
     });
 
     public async Task DisposeAsync() => await _node.DisposeAsync();
