@@ -2,6 +2,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Sapl.Core.Attributes;
 using Sapl.Core.Authorization;
 using Sapl.Core.Pep.Enforcement;
+using Sapl.Core.Pep.Transactions;
 using Sapl.Core.Subscription;
 
 namespace Sapl.Core.Interception;
@@ -12,9 +13,29 @@ namespace Sapl.Core.Interception;
 /// customizer) and routing through the enforcement engine, so policies can enforce on service
 /// methods, not only at the HTTP boundary.
 /// </summary>
-public sealed class SaplMethodInterceptor(EnforcementEngine engine, IServiceProvider serviceProvider)
+/// <remarks>
+/// When the host registers an <see cref="ISaplTransactionManager"/>, the protected invocation and
+/// the enforcement that depends on its result run inside one transaction boundary, so a denial
+/// after a write rolls the write back. Without a registered manager the
+/// <see cref="NoOpSaplTransactionManager"/> runs the body directly, leaving behavior unchanged.
+/// </remarks>
+public sealed class SaplMethodInterceptor
 {
-    public async Task<object?> PreEnforceAsync(
+    private readonly EnforcementEngine _engine;
+    private readonly IServiceProvider _serviceProvider;
+    private readonly ISaplTransactionManager _transactionManager;
+
+    public SaplMethodInterceptor(
+        EnforcementEngine engine,
+        IServiceProvider serviceProvider,
+        ISaplTransactionManager? transactionManager = null)
+    {
+        _engine = engine;
+        _serviceProvider = serviceProvider;
+        _transactionManager = transactionManager ?? NoOpSaplTransactionManager.Instance;
+    }
+
+    public Task<object?> PreEnforceAsync(
         PreEnforceAttribute attribute,
         SubscriptionContext context,
         Type returnType,
@@ -24,35 +45,39 @@ public sealed class SaplMethodInterceptor(EnforcementEngine engine, IServiceProv
         CancellationToken cancellationToken = default)
     {
         var subscription = Build(SubscriptionBuilder.FromAttribute(attribute), attribute.Customizer, context);
-        var enforcement = await engine.PreDecideAsync(subscription, returnType, cancellationToken).ConfigureAwait(false);
-
-        ApplyInput(enforcement, context, parameterNames, args);
-
-        object? returnValue;
-        try
+        return _transactionManager.ExecuteInTransactionAsync(async () =>
         {
-            returnValue = await proceed(args).ConfigureAwait(false);
-        }
-        catch (Exception exception)
-        {
-            throw enforcement.EnforceError(exception);
-        }
+            var enforcement = await _engine.PreDecideAsync(subscription, returnType, cancellationToken).ConfigureAwait(false);
 
-        return returnValue is null ? null : enforcement.EnforceOutput(returnValue);
+            ApplyInput(enforcement, context, parameterNames, args);
+
+            object? returnValue;
+            try
+            {
+                returnValue = await proceed(args).ConfigureAwait(false);
+            }
+            catch (Exception exception)
+            {
+                throw enforcement.EnforceError(exception);
+            }
+
+            return returnValue is null ? null : enforcement.EnforceOutput(returnValue);
+        }, cancellationToken);
     }
 
-    public async Task<object?> PostEnforceAsync(
+    public Task<object?> PostEnforceAsync(
         PostEnforceAttribute attribute,
         SubscriptionContext context,
         Type returnType,
         Func<Task<object?>> proceed,
-        CancellationToken cancellationToken = default)
-    {
-        var returnValue = await proceed().ConfigureAwait(false);
-        var withResult = WithReturnValue(context, returnValue);
-        var subscription = Build(SubscriptionBuilder.FromAttribute(attribute), attribute.Customizer, withResult);
-        return await engine.PostEnforceAsync(subscription, returnValue, returnType, cancellationToken).ConfigureAwait(false);
-    }
+        CancellationToken cancellationToken = default) =>
+        _transactionManager.ExecuteInTransactionAsync(async () =>
+        {
+            var returnValue = await proceed().ConfigureAwait(false);
+            var withResult = WithReturnValue(context, returnValue);
+            var subscription = Build(SubscriptionBuilder.FromAttribute(attribute), attribute.Customizer, withResult);
+            return await _engine.PostEnforceAsync(subscription, returnValue, returnType, cancellationToken).ConfigureAwait(false);
+        }, cancellationToken);
 
     public IAsyncEnumerable<T> EnforceStream<T>(
         StreamEnforceAttribute attribute,
@@ -61,7 +86,7 @@ public sealed class SaplMethodInterceptor(EnforcementEngine engine, IServiceProv
         CancellationToken cancellationToken = default)
     {
         var subscription = Build(SubscriptionBuilder.FromAttribute(attribute), attribute.Customizer, context);
-        return engine.EnforceStreamAsync(subscription, sourceFactory(), attribute.PauseRapDuringSuspend, cancellationToken);
+        return _engine.EnforceStreamAsync(subscription, sourceFactory(), attribute.PauseRapDuringSuspend, cancellationToken);
     }
 
     public IAsyncEnumerable<object?> EnforceStreamObjects(
@@ -71,7 +96,7 @@ public sealed class SaplMethodInterceptor(EnforcementEngine engine, IServiceProv
         CancellationToken cancellationToken = default)
     {
         var subscription = Build(SubscriptionBuilder.FromAttribute(attribute), attribute.Customizer, context);
-        return engine.EnforceStreamObjectsAsync(
+        return _engine.EnforceStreamObjectsAsync(
             subscription, sourceFactory(), typeof(object), attribute.SignalTransitions, attribute.PauseRapDuringSuspend,
             cancellationToken);
     }
@@ -80,7 +105,7 @@ public sealed class SaplMethodInterceptor(EnforcementEngine engine, IServiceProv
     {
         if (customizerType is not null)
         {
-            var customizer = (ISubscriptionCustomizer)ActivatorUtilities.GetServiceOrCreateInstance(serviceProvider, customizerType);
+            var customizer = (ISubscriptionCustomizer)ActivatorUtilities.GetServiceOrCreateInstance(_serviceProvider, customizerType);
             customizer.Customize(context, builder);
         }
 

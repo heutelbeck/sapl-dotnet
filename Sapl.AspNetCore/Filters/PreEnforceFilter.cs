@@ -5,6 +5,7 @@ using Microsoft.AspNetCore.Mvc.Filters;
 using Sapl.AspNetCore.Enforcement;
 using Sapl.Core.Attributes;
 using Sapl.Core.Pep.Enforcement;
+using Sapl.Core.Pep.Transactions;
 using Sapl.Core.Subscription;
 
 namespace Sapl.AspNetCore.Filters;
@@ -14,8 +15,22 @@ namespace Sapl.AspNetCore.Filters;
 /// action runs and gates it; obligations may transform the arguments (input), the result (output),
 /// or an exception (error). Denial throws and the access-denied middleware maps it to 403.
 /// </summary>
-public sealed class PreEnforceFilter(EnforcementEngine engine, SaplSubscriptionResolver resolver) : IAsyncActionFilter
+/// <remarks>
+/// When the host registers an <see cref="ISaplTransactionManager"/>, the action and the
+/// output-obligation enforcement run inside one transaction boundary, so an output-obligation
+/// failure after the action has written rolls the write back. The decision gate runs before the
+/// boundary, so a denial there means the action never ran and there is nothing to roll back.
+/// Without a registered manager the <see cref="NoOpSaplTransactionManager"/> runs the body
+/// directly, leaving behavior unchanged.
+/// </remarks>
+public sealed class PreEnforceFilter(
+    EnforcementEngine engine,
+    SaplSubscriptionResolver resolver,
+    ISaplTransactionManager? transactionManager = null) : IAsyncActionFilter
 {
+    private readonly ISaplTransactionManager _transactionManager =
+        transactionManager ?? NoOpSaplTransactionManager.Instance;
+
     public async Task OnActionExecutionAsync(ActionExecutingContext context, ActionExecutionDelegate next)
     {
         if (context.ActionDescriptor is not ControllerActionDescriptor descriptor ||
@@ -33,15 +48,23 @@ public sealed class PreEnforceFilter(EnforcementEngine engine, SaplSubscriptionR
 
         ApplyInput(context, enforcement);
 
-        var executed = await next().ConfigureAwait(false);
-        if (executed.Exception is { } exception && !executed.ExceptionHandled)
+        await _transactionManager.ExecuteInTransactionAsync<object?>(async () =>
         {
-            executed.Exception = enforcement.EnforceError(exception);
-        }
-        else if (executed.Result is ObjectResult { Value: { } value } result)
-        {
-            result.Value = enforcement.EnforceOutput(value);
-        }
+            var executed = await next().ConfigureAwait(false);
+            if (executed.Exception is { } exception && !executed.ExceptionHandled)
+            {
+                executed.Exception = enforcement.EnforceError(exception);
+            }
+            else if (executed.Result is ObjectResult { Value: { } value } result)
+            {
+                // An output-obligation failure throws AccessDeniedException out of the boundary,
+                // rolling back the action's writes; the exception then propagates to the
+                // access-denied middleware, which maps it to 403.
+                result.Value = enforcement.EnforceOutput(value);
+            }
+
+            return null;
+        }, context.HttpContext.RequestAborted).ConfigureAwait(false);
     }
 
     private static void ApplyInput(ActionExecutingContext context, EnforcementContext enforcement)

@@ -1,0 +1,21 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <Description>Entity Framework Core integration for SAPL (Streaming Attribute-Based Access Control). Provides an opt-in transaction manager that rolls back a protected method's writes when enforcement denies after the write.</Description>
+    <PackageTags>sapl;abac;authorization;access-control;entityframeworkcore;efcore;transactions</PackageTags>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <None Include="..\README.md" Pack="true" PackagePath="\" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Relational" Version="9.0.3" />
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="9.0.3" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Sapl.Core\Sapl.Core.csproj" />
+  </ItemGroup>
+
+</Project>
