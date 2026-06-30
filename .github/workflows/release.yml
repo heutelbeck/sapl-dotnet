@@ -35,6 +35,8 @@ jobs:
       - name: Pack
         run: |
           dotnet pack Sapl.Core/Sapl.Core.csproj -c Release --no-build -p:PackageVersion=${{ steps.version.outputs.VERSION }} -o packages
+          dotnet pack Sapl.Rsocket/Sapl.Rsocket.csproj -c Release --no-build -p:PackageVersion=${{ steps.version.outputs.VERSION }} -o packages
+          dotnet pack Sapl.EntityFrameworkCore/Sapl.EntityFrameworkCore.csproj -c Release --no-build -p:PackageVersion=${{ steps.version.outputs.VERSION }} -o packages
           dotnet pack Sapl.AspNetCore/Sapl.AspNetCore.csproj -c Release --no-build -p:PackageVersion=${{ steps.version.outputs.VERSION }} -o packages
 
       - name: NuGet login

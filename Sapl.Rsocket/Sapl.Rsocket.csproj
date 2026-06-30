@@ -1,5 +1,14 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
+  <PropertyGroup>
+    <Description>RSocket transport for the SAPL (Streaming Attribute-Based Access Control) .NET PDP client. Provides the RSocket-based decision channel to a SAPL Policy Decision Point.</Description>
+    <PackageTags>sapl;abac;authorization;access-control;rsocket;pdp</PackageTags>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <None Include="..\README.md" Pack="true" PackagePath="\" />
+  </ItemGroup>
+
   <ItemGroup>
     <PackageReference Include="Google.Protobuf" Version="3.28.3" />
     <PackageReference Include="Grpc.Tools" Version="2.67.0" PrivateAssets="all" />
