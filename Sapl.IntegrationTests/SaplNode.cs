@@ -9,7 +9,7 @@ namespace Sapl.IntegrationTests;
 /// </summary>
 public static class SaplNode
 {
-    private const string DefaultImage = "ghcr.io/heutelbeck/sapl-node:4.1.0-SNAPSHOT";
+    private const string DefaultImage = "ghcr.io/heutelbeck/sapl-node:4.1.2";
     private const string ReadyLog = "SAPL Node ready";
     private const string TlsBundle = "saplbundle";
     private const int HttpPort = 8080;
