@@ -12,6 +12,7 @@ internal static class ResponseValidator
     internal const string ErrorDecisionFieldMissing = "PDP response has no 'decision' field.";
     internal const string ErrorDecisionNotObject = "PDP response is not a JSON object.";
     internal const string ErrorDecisionValueInvalid = "PDP response has invalid decision value: ";
+    internal const string ErrorDuplicateSubscriptionId = "PDP multi-decision response has duplicate subscriptionId: ";
     internal const string ErrorJsonParseFailed = "Failed to parse PDP response JSON: ";
 
     public static AuthorizationDecision ValidateDecisionResponse(
@@ -155,9 +156,18 @@ internal static class ResponseValidator
             }
 
             // The node returns the bare id-to-decision map with no envelope.
+            // A duplicate subscription id is rejected fail-closed so a malformed
+            // or compromised PDP cannot last-wins-merge a repeated id into a
+            // surprise PERMIT; the PEP then falls back to IndeterminateForAll.
             var decisions = new Dictionary<string, AuthorizationDecision>();
             foreach (var prop in root.EnumerateObject())
             {
+                if (decisions.ContainsKey(prop.Name))
+                {
+                    logger.LogWarning("{Error}{Id}", ErrorDuplicateSubscriptionId, prop.Name);
+                    return null;
+                }
+
                 decisions[prop.Name] = ValidateDecisionResponse(prop.Value, logger);
             }
 

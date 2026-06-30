@@ -55,12 +55,22 @@ public sealed class PreEnforceFilter(
             {
                 executed.Exception = enforcement.EnforceError(exception);
             }
-            else if (executed.Result is ObjectResult { Value: { } value } result)
+            else
             {
-                // An output-obligation failure throws AccessDeniedException out of the boundary,
-                // rolling back the action's writes; the exception then propagates to the
-                // access-denied middleware, which maps it to 403.
-                result.Value = enforcement.EnforceOutput(value);
+                // Output obligations run for every result shape, including a null payload or a
+                // result that carries no payload at all. An output-obligation failure throws
+                // AccessDeniedException out of the boundary, rolling back the action's writes; the
+                // exception then propagates to the access-denied middleware, which maps it to 403.
+                var payload = executed.Result is ObjectResult original ? original.Value : null;
+                var enforced = enforcement.EnforceOutput(payload);
+                if (executed.Result is ObjectResult result)
+                {
+                    result.Value = enforced;
+                }
+                else if (!ReferenceEquals(enforced, payload))
+                {
+                    executed.Result = new ObjectResult(enforced);
+                }
             }
 
             return null;

@@ -43,16 +43,24 @@ public sealed class PostEnforceFilter(
         await _transactionManager.ExecuteInTransactionAsync<object?>(async () =>
         {
             var executed = await next().ConfigureAwait(false);
-            if (executed.Result is not ObjectResult { Value: { } value } result)
-            {
-                return null;
-            }
+
+            // The decision must be obtained for every result shape, not only value-carrying
+            // bodies. A null return, a NoContent/NotFound/Redirect/File result, etc. still runs
+            // the PDP and denies on any non-permit decision, so authorization cannot be bypassed.
+            var bodyResult = executed.Result as ObjectResult;
+            var value = bodyResult?.Value;
+            var resultType = value?.GetType() ?? descriptor.MethodInfo.ReturnType;
 
             var subscription = resolver.Resolve(
                 descriptor.MethodInfo, context.ActionArguments, SubscriptionBuilder.FromAttribute(attribute), attribute.Customizer, value);
-            result.Value = await engine
-                .PostEnforceAsync(subscription, value, value.GetType(), context.HttpContext.RequestAborted)
+            var enforced = await engine
+                .PostEnforceAsync(subscription, value, resultType, context.HttpContext.RequestAborted)
                 .ConfigureAwait(false);
+            if (bodyResult is not null)
+            {
+                bodyResult.Value = enforced;
+            }
+
             return null;
         }, context.HttpContext.RequestAborted).ConfigureAwait(false);
     }

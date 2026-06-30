@@ -70,7 +70,18 @@ public sealed class EnforcementPlanner
         var claims = new List<IReadOnlyList<ScopedHandler>>();
         foreach (var provider in _providers)
         {
-            var claim = provider.GetConstraintHandlers(constraint, supportedSignals);
+            // A provider that throws while resolving a malformed constraint is treated as a
+            // no-claim, so the constraint fails closed through the unresolved substitute path
+            // rather than crashing planning with a raw exception. (F1)
+            IReadOnlyList<ScopedHandler> claim;
+            try
+            {
+                claim = provider.GetConstraintHandlers(constraint, supportedSignals);
+            }
+            catch (Exception)
+            {
+                continue;
+            }
             if (claim.Count > 0)
                 claims.Add(claim);
         }

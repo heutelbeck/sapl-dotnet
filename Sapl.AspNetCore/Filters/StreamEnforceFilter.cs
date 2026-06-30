@@ -35,7 +35,9 @@ public sealed class StreamEnforceFilter(EnforcementEngine engine, SaplSubscripti
         var executed = await next().ConfigureAwait(false);
         if (executed.Result is not ObjectResult { Value: { } value } || AsyncEnumerableElementType(value.GetType()) is not { } elementType)
         {
-            return;
+            executed.Result = null;
+            throw new InvalidOperationException(
+                $"StreamEnforce requires an IAsyncEnumerable<T> return type, but {descriptor.MethodInfo.Name} returns {descriptor.MethodInfo.ReturnType.Name}.");
         }
 
         var subscription = resolver.Resolve(

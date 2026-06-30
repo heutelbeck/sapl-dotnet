@@ -20,6 +20,7 @@ public sealed class EnforcementEngine
     internal const string DeniedDecisionEnforcementFailed = "Access denied: decision-scoped enforcement of the permit failed.";
     internal const string DeniedOutputObligationFailed = "Access denied: an output obligation failed.";
     internal const string DeniedSuspended = "Access denied: the policy suspended a non-streaming request.";
+    internal const string PdpStreamCompletedUnexpectedly = "PDP decision stream completed unexpectedly; a streaming PDP must not complete.";
 
     private static readonly IReadOnlySet<SignalType> PreEnforceSignals =
         new HashSet<SignalType> { SignalType.Decision };
@@ -60,7 +61,7 @@ public sealed class EnforcementEngine
             SignalType.Decision, SignalType.Input, SignalType.Output(outputType), SignalType.Error,
         };
         var plan = _planner.Plan(decision, supported);
-        GateOrThrow(decision, plan);
+        GatePreInvocationOrThrow(decision, plan);
         return new EnforcementContext(plan, outputType);
     }
 
@@ -240,10 +241,22 @@ public sealed class EnforcementEngine
     {
         try
         {
+            var sawDecision = false;
             await foreach (var decision in _pdp.Decide(subscription, cancellationToken).ConfigureAwait(false))
             {
+                sawDecision = true;
                 writer.TryWrite(new Incoming.MachineEvent(Classify(decision, supported)));
             }
+
+            // The streaming decision source is contractually infinite. An empty stream coerces to
+            // a single DENY, and any completion fails the protected stream closed rather than
+            // leaving it running without a live authorization.
+            if (!sawDecision)
+            {
+                writer.TryWrite(new Incoming.MachineEvent(Classify(new AuthorizationDecision { Decision = Decision.Deny }, supported)));
+            }
+
+            writer.TryWrite(new Incoming.MachineEvent(new Event.PdpError(new InvalidOperationException(PdpStreamCompletedUnexpectedly))));
         }
         catch (OperationCanceledException)
         {
@@ -354,6 +367,22 @@ public sealed class EnforcementEngine
         if (failed)
         {
             throw new AccessDeniedException(DeniedDecisionEnforcementFailed);
+        }
+    }
+
+    private void GatePreInvocationOrThrow(AuthorizationDecision decision, EnforcementPlan plan)
+    {
+        var failed = plan.Execute(new Signal.Decision(decision), false).FailureState;
+        if (decision.Decision != Decision.Permit || failed)
+        {
+            // Fire the input signal unconditionally before denying so input-scoped handlers
+            // (audit, logging) still run even when the decision signal already failed. The
+            // transformed value is discarded because access is denied.
+            plan.Execute(new Signal.Input(null), failed);
+            throw new AccessDeniedException(
+                decision.Decision != Decision.Permit
+                    ? OneShotDenialMessage(decision.Decision)
+                    : DeniedDecisionEnforcementFailed);
         }
     }
 

@@ -112,7 +112,9 @@ public sealed class EnforcementEngineTests
     [Fact]
     async Task StreamPermitFlowsItems()
     {
-        var engine = Engine(Permit());
+        // The streaming decision source is contractually infinite, so the permit is kept open
+        // while the protected stream runs to completion.
+        var engine = new EnforcementEngine(new StubPdp(Permit(), kept: true), []);
         using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
 
         var items = new List<int>();

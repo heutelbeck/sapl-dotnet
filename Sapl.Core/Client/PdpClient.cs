@@ -144,13 +144,19 @@ public sealed class PdpClient : IPolicyDecisionPoint
         {
             if (data is null)
             {
-                previousBySubscription.Clear();
+                var indeterminate = AuthorizationDecision.IndeterminateInstance;
                 foreach (var id in subscription.Subscriptions.Keys)
                 {
+                    if (previousBySubscription.TryGetValue(id, out var prev)
+                        && indeterminate.Equals(prev))
+                    {
+                        continue;
+                    }
+                    previousBySubscription[id] = indeterminate;
                     yield return new IdentifiableAuthorizationDecision
                     {
                         SubscriptionId = id,
-                        Decision = AuthorizationDecision.IndeterminateInstance,
+                        Decision = indeterminate,
                     };
                 }
                 continue;
@@ -185,8 +191,11 @@ public sealed class PdpClient : IPolicyDecisionPoint
             if (data is null)
             {
                 var indeterminate = MultiAuthorizationDecision.IndeterminateForAll(subscription);
-                previous = indeterminate;
-                yield return indeterminate;
+                if (!MultiDecisionEquals(indeterminate, previous))
+                {
+                    previous = indeterminate;
+                    yield return indeterminate;
+                }
                 continue;
             }
 
@@ -358,7 +367,15 @@ public sealed class PdpClient : IPolicyDecisionPoint
 
             while (!cancellationToken.IsCancellationRequested)
             {
-                var bytesRead = await stream.ReadAsync(buffer, cancellationToken).ConfigureAwait(false);
+                int bytesRead;
+                using (var inactivityCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken))
+                {
+                    // Liveness deadline: a silently dead-but-open socket must fail
+                    // closed and reconnect rather than block here forever. SSE
+                    // keep-alive frames reset this by producing bytes.
+                    inactivityCts.CancelAfter(_options.TimeoutMs);
+                    bytesRead = await stream.ReadAsync(buffer, inactivityCts.Token).ConfigureAwait(false);
+                }
                 if (bytesRead == 0)
                     return;
 

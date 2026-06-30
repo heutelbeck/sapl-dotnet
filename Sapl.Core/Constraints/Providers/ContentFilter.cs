@@ -1,4 +1,5 @@
 using System.Collections;
+using System.Runtime.CompilerServices;
 using System.Text.Json;
 using System.Text.RegularExpressions;
 using Newtonsoft.Json.Linq;
@@ -15,6 +16,7 @@ internal static class ContentFilter
     internal const string ErrorConstraintPathNotPresentEnforcement = "Constraint enforcement failed. Error evaluating a constraint predicate. The path defined in the constraint is not present in the data.";
     internal const string ErrorConvertingModifiedObject = "Error converting modified object to original class type.";
     internal const string ErrorLengthNotNumber = "'length' of 'blacken' action is not numeric.";
+    internal const string ErrorLengthTooLarge = "'length' of 'blacken' action exceeds the maximum permitted blacken length.";
     internal const string ErrorNoReplacementSpecified = "The constraint indicates a text node to be replaced. However, the action does not specify a 'replacement'.";
     internal const string ErrorPathNotTextual = "The constraint indicates a text node to be blackened. However, the node identified by the path is not a text node.";
     internal const string ErrorPredicateConditionInvalid = "Not a valid predicate condition: ";
@@ -28,6 +30,9 @@ internal static class ContentFilter
 
     private const string BlackSquare = "\u2588";
     private const int BlackenLengthInvalidValue = -1;
+    private const int MaxBlacken = 1_000_000;
+
+    private static readonly TimeSpan RegexMatchBudget = TimeSpan.FromSeconds(1);
 
     private static readonly Regex RedosAlternationWithQuant = new(@"\([^)|]*\|[^)]*\)[*+]", RegexOptions.Compiled);
     private static readonly Regex RedosNestedBoundedQuant = new(@"\{\d+,\d*}[^{]*\{\d+,\d*}", RegexOptions.Compiled);
@@ -109,7 +114,11 @@ internal static class ContentFilter
 
             try
             {
-                return ToJsonElement(jToken);
+                return ConvertBackToOriginalType(jToken, original);
+            }
+            catch (AccessConstraintViolationException)
+            {
+                throw;
             }
             catch (Exception e)
             {
@@ -186,19 +195,26 @@ internal static class ContentFilter
         if (!action.TryGetProperty("length", out var lengthProp))
             return BlackenLengthInvalidValue;
 
-        if (lengthProp.ValueKind == JsonValueKind.Number && lengthProp.TryGetInt32(out var length) && length >= 0)
-            return length;
+        if (lengthProp.ValueKind != JsonValueKind.Number || !lengthProp.TryGetDecimal(out var length) || length < 0)
+            throw new AccessConstraintViolationException(ErrorLengthNotNumber);
 
-        throw new AccessConstraintViolationException(ErrorLengthNotNumber);
+        if (length > MaxBlacken)
+            throw new AccessConstraintViolationException(ErrorLengthTooLarge);
+
+        return (int)length;
     }
 
     private static string BlackenUtil(string originalString, string replacement, int discloseRight, int discloseLeft, int blackenLength)
     {
-        if (discloseLeft + discloseRight >= originalString.Length)
+        if ((long)discloseLeft + discloseRight >= originalString.Length)
             return originalString;
 
         var replacedChars = originalString.Length - discloseLeft - discloseRight;
         var finalLength = blackenLength == BlackenLengthInvalidValue ? replacedChars : blackenLength;
+
+        // Bound total output (replacement length x repetitions) to prevent amplification.
+        if ((long)replacement.Length * finalLength > MaxBlacken)
+            throw new AccessConstraintViolationException(ErrorLengthTooLarge);
 
         var left = discloseLeft > 0 ? originalString[..discloseLeft] : "";
         var right = discloseRight > 0 ? originalString[(discloseLeft + replacedChars)..] : "";
@@ -326,7 +342,7 @@ internal static class ContentFilter
     private static Func<object, bool> EqualsCondition(JsonElement condition, string path, JsonElement valueProp)
     {
         if (valueProp.ValueKind == JsonValueKind.Number)
-            return NumberEqCondition(path, valueProp);
+            return NumberEqCondition(condition, path, valueProp);
 
         if (valueProp.ValueKind != JsonValueKind.String)
             throw new AccessConstraintViolationException(ErrorPredicateConditionInvalid + condition);
@@ -342,30 +358,27 @@ internal static class ContentFilter
         };
     }
 
-    private static Func<object, bool> NumberEqCondition(string path, JsonElement valueProp)
+    private static Func<object, bool> NumberEqCondition(JsonElement condition, string path, JsonElement valueProp)
     {
-        var conditionValue = valueProp.GetDouble();
+        var conditionValue = ConditionDecimal(condition, valueProp);
 
         return original =>
         {
             var value = GetValueAtPath(original, path);
-            if (!TryGetDouble(value, out var numberValue))
+            if (!TryGetDecimal(value, out var numberValue))
                 return false;
-            return Math.Abs(conditionValue - numberValue) < double.Epsilon;
+            return conditionValue == numberValue;
         };
     }
 
     private static Func<object, bool> GeqCondition(JsonElement condition, string path, JsonElement valueProp)
     {
-        if (valueProp.ValueKind != JsonValueKind.Number)
-            throw new AccessConstraintViolationException(ErrorPredicateConditionInvalid + condition);
-
-        var conditionValue = valueProp.GetDouble();
+        var conditionValue = ConditionDecimal(condition, valueProp);
 
         return original =>
         {
             var value = GetValueAtPath(original, path);
-            if (!TryGetDouble(value, out var numberValue))
+            if (!TryGetDecimal(value, out var numberValue))
                 return false;
             return numberValue >= conditionValue;
         };
@@ -373,15 +386,12 @@ internal static class ContentFilter
 
     private static Func<object, bool> LeqCondition(JsonElement condition, string path, JsonElement valueProp)
     {
-        if (valueProp.ValueKind != JsonValueKind.Number)
-            throw new AccessConstraintViolationException(ErrorPredicateConditionInvalid + condition);
-
-        var conditionValue = valueProp.GetDouble();
+        var conditionValue = ConditionDecimal(condition, valueProp);
 
         return original =>
         {
             var value = GetValueAtPath(original, path);
-            if (!TryGetDouble(value, out var numberValue))
+            if (!TryGetDecimal(value, out var numberValue))
                 return false;
             return numberValue <= conditionValue;
         };
@@ -389,15 +399,12 @@ internal static class ContentFilter
 
     private static Func<object, bool> LtCondition(JsonElement condition, string path, JsonElement valueProp)
     {
-        if (valueProp.ValueKind != JsonValueKind.Number)
-            throw new AccessConstraintViolationException(ErrorPredicateConditionInvalid + condition);
-
-        var conditionValue = valueProp.GetDouble();
+        var conditionValue = ConditionDecimal(condition, valueProp);
 
         return original =>
         {
             var value = GetValueAtPath(original, path);
-            if (!TryGetDouble(value, out var numberValue))
+            if (!TryGetDecimal(value, out var numberValue))
                 return false;
             return numberValue < conditionValue;
         };
@@ -405,18 +412,24 @@ internal static class ContentFilter
 
     private static Func<object, bool> GtCondition(JsonElement condition, string path, JsonElement valueProp)
     {
-        if (valueProp.ValueKind != JsonValueKind.Number)
-            throw new AccessConstraintViolationException(ErrorPredicateConditionInvalid + condition);
-
-        var conditionValue = valueProp.GetDouble();
+        var conditionValue = ConditionDecimal(condition, valueProp);
 
         return original =>
         {
             var value = GetValueAtPath(original, path);
-            if (!TryGetDouble(value, out var numberValue))
+            if (!TryGetDecimal(value, out var numberValue))
                 return false;
             return numberValue > conditionValue;
         };
+    }
+
+    // Compare on the exact decimal. Double would conflate distinct integers beyond 2^53.
+    private static decimal ConditionDecimal(JsonElement condition, JsonElement valueProp)
+    {
+        if (valueProp.ValueKind != JsonValueKind.Number || !valueProp.TryGetDecimal(out var value))
+            throw new AccessConstraintViolationException(ErrorPredicateConditionInvalid + condition);
+
+        return value;
     }
 
     private static Func<object, bool> RegexCondition(JsonElement condition, string path, JsonElement valueProp)
@@ -429,14 +442,23 @@ internal static class ContentFilter
         if (IsDangerousRegex(patternText))
             throw new AccessConstraintViolationException(ErrorRegexUnsafe + patternText);
 
-        var regex = new Regex(patternText, RegexOptions.Compiled);
+        var regex = new Regex(patternText, RegexOptions.Compiled, RegexMatchBudget);
 
         return original =>
         {
             var value = GetValueAtPath(original, path);
             if (value is not string stringValue)
                 return false;
-            return regex.IsMatch(stringValue);
+            // Bound the match at execution time. A runaway pattern aborts within the
+            // budget and denies, instead of pinning the request thread.
+            try
+            {
+                return regex.IsMatch(stringValue);
+            }
+            catch (RegexMatchTimeoutException)
+            {
+                throw new AccessConstraintViolationException(ErrorRegexUnsafe + patternText);
+            }
         };
     }
 
@@ -459,7 +481,7 @@ internal static class ContentFilter
         };
     }
 
-    private static bool TryGetDouble(object? value, out double result)
+    private static bool TryGetDecimal(object? value, out decimal result)
     {
         switch (value)
         {
@@ -470,13 +492,18 @@ internal static class ContentFilter
                 result = l;
                 return true;
             case float f:
-                result = f;
+                result = (decimal)f;
                 return true;
             case double d:
-                result = d;
+                if (double.IsNaN(d) || double.IsInfinity(d) || d < (double)decimal.MinValue || d > (double)decimal.MaxValue)
+                {
+                    result = 0;
+                    return false;
+                }
+                result = (decimal)d;
                 return true;
             case decimal m:
-                result = (double)m;
+                result = m;
                 return true;
             default:
                 result = 0;
@@ -508,6 +535,30 @@ internal static class ContentFilter
         var json = token.ToString(Newtonsoft.Json.Formatting.None);
         using var doc = JsonDocument.Parse(json);
         return doc.RootElement.Clone();
+    }
+
+    // Round-trip the filtered content back to the payload's original runtime type so
+    // downstream consumers still receive the declared object. Untyped payloads
+    // (JsonElement, anonymous types) have no named target and stay as JsonElement.
+    private static object ConvertBackToOriginalType(JToken token, object original)
+    {
+        var originalType = original.GetType();
+        if (originalType == typeof(JsonElement) || IsAnonymousType(originalType))
+            return ToJsonElement(token);
+
+        var json = token.ToString(Newtonsoft.Json.Formatting.None);
+        var converted = JsonSerializer.Deserialize(json, originalType, Authorization.SerializerDefaults.Options);
+        if (converted is null)
+            throw new AccessConstraintViolationException(ErrorConvertingModifiedObject);
+
+        return converted;
+    }
+
+    private static bool IsAnonymousType(Type type)
+    {
+        return Attribute.IsDefined(type, typeof(CompilerGeneratedAttribute), false)
+               && type.IsGenericType
+               && type.Name.Contains("AnonymousType");
     }
 
     private static JsonElement MapJsonArrayContents(JsonElement jsonArray, Func<object, object> transformation, Func<object, bool> predicate)
