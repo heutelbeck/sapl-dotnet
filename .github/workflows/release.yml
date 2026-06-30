@@ -8,8 +8,10 @@ jobs:
   release:
     runs-on: ubuntu-latest
     environment: release
+    timeout-minutes: 15
     permissions:
       id-token: write
+      contents: write
 
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
@@ -25,8 +27,8 @@ jobs:
       - name: Build
         run: dotnet build Sapl.sln -c Release --no-restore
 
-      - name: Test
-        run: dotnet test Sapl.sln -c Release --no-build --verbosity normal
+      - name: Test (unit only; integration tests run in their own workflow)
+        run: dotnet test Sapl.sln -c Release --no-build --verbosity normal --filter "FullyQualifiedName!~Sapl.IntegrationTests"
 
       - name: Extract version from tag
         id: version
