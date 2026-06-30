@@ -29,7 +29,7 @@ public class PdpClientStreamingResilienceTests
         async Task WhenSseSocketGoesSilentThenFailsClosedToIndeterminate()
         {
             using var handler = new HalfOpenSseHandler("data: {\"decision\":\"PERMIT\"}\n\n");
-            var client = BuildClient(handler, timeoutMs: 250);
+            var client = BuildClient(handler, timeoutMs: 250, streamInactivityTimeoutMs: 250);
             var subscription = AuthorizationSubscription.Create("alice", "read", "doc");
 
             using var safety = new CancellationTokenSource(TimeSpan.FromSeconds(3));
@@ -131,7 +131,8 @@ public class PdpClientStreamingResilienceTests
         HttpMessageHandler handler,
         int timeoutMs = 5000,
         int retryBaseDelayMs = 1000,
-        int retryMaxDelayMs = 30000)
+        int retryMaxDelayMs = 30000,
+        int streamInactivityTimeoutMs = 60000)
     {
         var factory = Substitute.For<IHttpClientFactory>();
         factory.CreateClient("SaplPdp").Returns(_ => new HttpClient(handler));
@@ -140,6 +141,7 @@ public class PdpClientStreamingResilienceTests
         {
             BaseUrl = "https://localhost:8443",
             TimeoutMs = timeoutMs,
+            StreamInactivityTimeoutMs = streamInactivityTimeoutMs,
             StreamingRetryBaseDelayMs = retryBaseDelayMs,
             StreamingRetryMaxDelayMs = retryMaxDelayMs,
         };
@@ -185,6 +187,123 @@ public class PdpClientStreamingResilienceTests
 
             await Task.Delay(Timeout.Infinite, cancellationToken).ConfigureAwait(false);
             return 0;
+        }
+
+        public override bool CanRead => true;
+        public override bool CanSeek => false;
+        public override bool CanWrite => false;
+        public override long Length => throw new NotSupportedException();
+
+        public override long Position
+        {
+            get => throw new NotSupportedException();
+            set => throw new NotSupportedException();
+        }
+
+        public override void Flush()
+        {
+        }
+
+        public override int Read(byte[] buffer, int offset, int count) =>
+            throw new NotSupportedException();
+
+        public override long Seek(long offset, SeekOrigin origin) =>
+            throw new NotSupportedException();
+
+        public override void SetLength(long value) => throw new NotSupportedException();
+
+        public override void Write(byte[] buffer, int offset, int count) =>
+            throw new NotSupportedException();
+    }
+
+    // CR-11 follow-up: the SSE inactivity deadline must be the (large) stream
+    // inactivity window, not the (short) connect timeout. A decision stream that is
+    // merely quiet between decisions must keep delivering, not fail closed mid-stream.
+    public class QuietWithinInactivityWindowScenario
+    {
+        [Fact(DisplayName = "A stream quiet past the connect timeout still delivers a later decision within the inactivity window")]
+        async Task WhenQuietWithinInactivityWindowThenLaterDecisionDelivered()
+        {
+            using var handler = new DelayedSecondFrameSseHandler(
+                "data: {\"decision\":\"PERMIT\"}\n\n",
+                "data: {\"decision\":\"DENY\"}\n\n",
+                delayMs: 500);
+            var client = BuildClient(handler, timeoutMs: 150, streamInactivityTimeoutMs: 3000);
+            var subscription = AuthorizationSubscription.Create("alice", "read", "doc");
+
+            using var safety = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+            var decisions = new List<AuthorizationDecision>();
+            await foreach (var decision in client.Decide(subscription, safety.Token))
+            {
+                decisions.Add(decision);
+                if (decisions.Count >= 2)
+                {
+                    break;
+                }
+            }
+
+            decisions[0].Decision.Should().Be(Decision.Permit);
+            decisions[1].Decision.Should().Be(Decision.Deny,
+                "a stream merely quiet within the inactivity window must keep delivering decisions, not fail closed at the connect timeout");
+        }
+    }
+
+    // 200 + text/event-stream: emits one frame, waits delayMs, emits a second frame,
+    // then leaves the socket open silently.
+    private sealed class DelayedSecondFrameSseHandler : HttpMessageHandler
+    {
+        private readonly string _first;
+        private readonly string _second;
+        private readonly int _delayMs;
+
+        public DelayedSecondFrameSseHandler(string first, string second, int delayMs)
+        {
+            _first = first;
+            _second = second;
+            _delayMs = delayMs;
+        }
+
+        protected override Task<HttpResponseMessage> SendAsync(
+            HttpRequestMessage request,
+            CancellationToken cancellationToken)
+        {
+            var content = new StreamContent(new DelayedSecondFrameSseStream(_first, _second, _delayMs));
+            content.Headers.ContentType = new MediaTypeHeaderValue("text/event-stream");
+            return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK) { Content = content });
+        }
+    }
+
+    private sealed class DelayedSecondFrameSseStream : Stream
+    {
+        private readonly byte[] _first;
+        private readonly byte[] _second;
+        private readonly int _delayMs;
+        private int _read;
+
+        public DelayedSecondFrameSseStream(string first, string second, int delayMs)
+        {
+            _first = Encoding.UTF8.GetBytes(first);
+            _second = Encoding.UTF8.GetBytes(second);
+            _delayMs = delayMs;
+        }
+
+        public override async ValueTask<int> ReadAsync(
+            Memory<byte> buffer,
+            CancellationToken cancellationToken = default)
+        {
+            switch (_read++)
+            {
+                case 0:
+                    _first.AsSpan().CopyTo(buffer.Span);
+                    return _first.Length;
+                case 1:
+                    await Task.Delay(_delayMs, cancellationToken).ConfigureAwait(false);
+                    _second.AsSpan().CopyTo(buffer.Span);
+                    return _second.Length;
+                default:
+                    await Task.Delay(Timeout.Infinite, cancellationToken).ConfigureAwait(false);
+                    return 0;
+            }
         }
 
         public override bool CanRead => true;

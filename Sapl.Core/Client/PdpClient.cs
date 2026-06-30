@@ -372,8 +372,10 @@ public sealed class PdpClient : IPolicyDecisionPoint
                 {
                     // Liveness deadline: a silently dead-but-open socket must fail
                     // closed and reconnect rather than block here forever. SSE
-                    // keep-alive frames reset this by producing bytes.
-                    inactivityCts.CancelAfter(_options.TimeoutMs);
+                    // keep-alive frames reset this by producing bytes. This window
+                    // is the stream inactivity timeout, not the connect timeout: a
+                    // decision stream is idle by design between decisions.
+                    inactivityCts.CancelAfter(_options.StreamInactivityTimeoutMs);
                     bytesRead = await stream.ReadAsync(buffer, inactivityCts.Token).ConfigureAwait(false);
                 }
                 if (bytesRead == 0)

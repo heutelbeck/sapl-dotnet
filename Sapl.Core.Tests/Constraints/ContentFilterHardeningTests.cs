@@ -1,3 +1,4 @@
+using System.Linq;
 using System.Text.Json;
 using FluentAssertions;
 using Sapl.Core.Constraints.Providers;
@@ -167,6 +168,28 @@ public sealed class ContentFilterHardeningTests
 
             result.Should().BeOfType<Person>(
                 "the redacted value must round-trip back to the original runtime type, not a JsonElement");
+        }
+
+        [Fact]
+        public void ReturnsRedactedContentWhenTheRuntimeTypeCannotBeReconstructed()
+        {
+            var handler = HandlerFor(new
+            {
+                type = "filterJsonContent",
+                actions = new[] { new { type = "delete", path = "$.ssn" } },
+            });
+
+            // A non-materialized LINQ projection: the runtime type is a Select
+            // iterator that System.Text.Json cannot deserialize back into. The
+            // redaction still applies, so the redacted content must be returned
+            // rather than denied -- the obligation succeeded, only the .NET type
+            // reconstruction failed, which is not a policy violation.
+            object payload = new[] { new { ssn = "123-45-6789", name = "Alice" } }.Select(p => p);
+
+            var result = (JsonElement)ApplyRaw(handler, payload)!;
+
+            result[0].TryGetProperty("ssn", out _).Should().BeFalse();
+            result[0].GetProperty("name").GetString().Should().Be("Alice");
         }
     }
 }

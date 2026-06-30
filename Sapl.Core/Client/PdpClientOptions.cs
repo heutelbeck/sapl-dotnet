@@ -11,6 +11,7 @@ public sealed record PdpClientOptions
     internal const string ErrorInsecureHttp = "PDP base URL uses plain HTTP to a non-loopback host. Use HTTPS, or run the PDP on localhost.";
 
     private const int DefaultTimeoutMs = 5000;
+    private const int DefaultStreamInactivityTimeoutMs = 60000;
     private const int DefaultRetryBaseDelayMs = 1000;
     private const int DefaultRetryMaxDelayMs = 30000;
 
@@ -23,6 +24,14 @@ public sealed record PdpClientOptions
     public string? Secret { get; set; }
 
     public int TimeoutMs { get; set; } = DefaultTimeoutMs;
+
+    /// <summary>
+    /// Maximum silence between reads on a streaming decision connection before it is
+    /// treated as dead and reconnected. A decision stream is idle by design between
+    /// decisions, so this is far larger than the connect <see cref="TimeoutMs"/>.
+    /// Mirrors the Spring per-item stream timeout.
+    /// </summary>
+    public int StreamInactivityTimeoutMs { get; set; } = DefaultStreamInactivityTimeoutMs;
 
     public int StreamingRetryBaseDelayMs { get; set; } = DefaultRetryBaseDelayMs;
 

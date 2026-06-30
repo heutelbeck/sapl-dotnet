@@ -120,9 +120,13 @@ internal static class ContentFilter
             {
                 throw;
             }
-            catch (Exception e)
+            catch (Exception)
             {
-                throw new AccessConstraintViolationException(ErrorConvertingModifiedObject, e);
+                // The redaction was applied successfully; only reconstructing the
+                // original .NET type failed (e.g. a non-materialized IEnumerable
+                // projection that cannot be deserialized). Return the redacted
+                // content rather than denying -- the obligation was discharged.
+                return ToJsonElement(jToken);
             }
         };
     }
